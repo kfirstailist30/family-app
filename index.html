@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
@@ -8,10 +8,11 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     body { font-family: sans-serif; margin: 0; padding: 0; }
-    #map { width: 100%; height: 80vh; }
-    #controls { padding: 10px; height: 20vh; background: #f0f0f0; }
-    select, button { font-size: 16px; padding: 10px; margin: 5px 0; width: 100%; }
-    button { background: #28a745; color: white; border: none; border-radius: 5px; }
+    #map { width: 100%; height: 70vh; }
+    #controls { padding: 10px; height: 30vh; background: #f0f0f0; box-sizing: border-box; }
+    select, button { font-size: 16px; padding: 10px; margin: 5px 0; width: 100%; border-radius: 5px; }
+    button { background: #28a745; color: white; border: none; font-weight: bold; }
+    .btn-secondary { background: #007bff; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -24,6 +25,7 @@
     <option value="רונילי">רונילי</option>
   </select>
   <button onclick="startTracking()">התחל שיתוף מיקום חי</button>
+  <button class="btn-secondary" onclick="fitAllMarkers()">הצג את כולם על המפה</button>
 </div>
 
 <div id="map"></div>
@@ -40,9 +42,7 @@
   const db = getDatabase(app);
 
   const map = L.map('map').setView([31.0461, 34.8516], 8);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-  }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   const markers = {};
 
@@ -51,25 +51,56 @@
     const data = snapshot.val();
     if (data) {
       Object.keys(data).forEach(user => {
-        const { lat, lng } = data[user];
+        const { lat, lng, speed, battery, timestamp } = data[user];
+        const timeAgo = Math.round((Date.now() - timestamp) / 1000);
+        const speedKmh = speed ? Math.round(speed * 3.6) : 0;
+        const batText = battery !== undefined ? `🔋 סוללה: ${battery}%` : '';
+
+        const popupContent = `
+          <b>${user}</b><br>
+          🚗 מהירות: ${speedKmh} קמ"ש<br>
+          ${batText}<br>
+          ⏱️ עודכן לפני: ${timeAgo} שניות
+        `;
+
         if (markers[user]) {
-          markers[user].setLatLng([lat, lng]);
+          markers[user].setLatLng([lat, lng]).setPopupContent(popupContent);
         } else {
-          markers[user] = L.marker([lat, lng]).addTo(map).bindPopup(user).openPopup();
+          markers[user] = L.marker([lat, lng]).addTo(map).bindPopup(popupContent);
         }
       });
     }
   });
 
-  window.startTracking = function() {
+  window.fitAllMarkers = function() {
+    const group = new L.featureGroup(Object.values(markers));
+    if (Object.keys(markers).length > 0) {
+      map.fitBounds(group.getBounds().pad(0.2));
+    }
+  };
+
+  window.startTracking = async function() {
     const userName = document.getElementById('userName').value;
+
+    let batteryLevel = 100;
+    if (navigator.getBattery) {
+      try {
+        const battery = await navigator.getBattery();
+        batteryLevel = Math.round(battery.level * 100);
+      } catch (e) {}
+    }
+
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition((position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
+        const speed = position.coords.speed;
+
         set(ref(db, 'locations/' + userName), {
           lat: lat,
           lng: lng,
+          speed: speed,
+          battery: batteryLevel,
           timestamp: Date.now()
         });
       }, (error) => {
