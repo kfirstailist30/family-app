@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מעקב משפחתי בזמן אמת</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+    body { background-color: #f4f6f8; display: flex; flex-direction: column; height: 100vh; }
+    header { background: #1e293b; color: white; padding: 15px; text-align: center; font-size: 1.2rem; font-weight: bold; }
+    #map { flex: 1; width: 100%; }
+    .status-panel { background: white; padding: 15px; border-radius: 16px 16px 0 0; box-shadow: 0 -4px 10px rgba(0,0,0,0.1); }
+    .user-card { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .user-info { display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    .battery { font-weight: bold; color: #16a34a; }
+    .actions { display: flex; gap: 10px; margin-top: 12px; }
+    .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; cursor: pointer; }
+    .btn-safe { background-color: #22c55e; color: white; }
+    .btn-sos { background-color: #ef4444; color: white; }
+  </style>
+</head>
+<body>
+  <header>📍 מיקום משפחתי בזמן אמת</header>
+  <div id="map"></div>
+  <div class="status-panel">
+    <div class="user-card">
+      <div class="user-info">
+        <div class="avatar" style="background-color: #3b82f6;">כ</div>
+        <div>
+          <strong>כפיר</strong>
+          <div style="font-size:0.8rem; color:gray;" id="status-kfir">מעדכן מיקום...</div>
+        </div>
+      </div>
+      <div class="battery" id="bat-kfir">🔋 --%</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-safe" onclick="alert('נשלח עדכון: אני בסדר! ❤️')">❤️ אני בסדר</button>
+      <button class="btn btn-sos" onclick="alert('🚨 התראת SOS נשלחה!')">🆘 קריאת SOS</button>
+    </div>
+  </div>
+  <script>
+    const map = L.map('map').setView([32.0853, 34.7818], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    let marker;
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition((pos) => {
+        const lat = pos.coords.latitude; const lng = pos.coords.longitude;
+        if (!marker) { marker = L.marker([lat, lng]).addTo(map); }
+        else { marker.setLatLng([lat, lng]); }
+        map.setView([lat, lng], 15);
+        document.getElementById('status-kfir').innerText = 'מחובר • מיקום חי';
+      });
+    }
+    if (navigator.getBattery) {
+      navigator.getBattery().then(b => {
+        document.getElementById('bat-kfir').innerText = `🔋 ${Math.round(b.level * 100)}%`;
+      });
+    }
+  </script>
+</body>
+</html>
