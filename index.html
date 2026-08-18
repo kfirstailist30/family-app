@@ -7,74 +7,50 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; }
-    #map { height: 80vh; width: 100vw; }
-    #controls { height: 20vh; padding: 10px; box-sizing: border-box; text-align: center; background: #f8f9fa; }
-    select, button { padding: 10px; font-size: 16px; margin: 5px; border-radius: 5px; }
-    button { background: #28a745; color: white; border: none; font-weight: bold; }
+    body { font-family: sans-serif; margin: 0; padding: 0; }
+    #map { width: 100%; height: 80vh; }
+    #controls { padding: 10px; height: 20vh; background: #f0f0f0; }
+    select, button { font-size: 16px; padding: 10px; margin: 5px 0; width: 100%; }
+    button { background: #28a745; color: white; border: none; border-radius: 5px; }
   </style>
 </head>
 <body>
 
-  <div id="controls">
-    <label for="userName">מי משתמש בטלפון הזה?</label><br>
-    <select id="userName">
-      <select id="userName">
-  <option value="כפיר">כפיר</option>
-  <option value="מירי">מירי</option>
-  <option value="רונילי">רונילי</option>
-      </select>
-    
-    </select>
-    <br>
-    <button onclick="startTracking()">התחל שיתוף מיקום חי</button>
-  </div>
+<div id="controls">
+  <label for="userName">מי משתמש בטלפון הזה?</label>
+  <select id="userName">
+    <option value="כפיר">כפיר</option>
+    <option value="מירי">מירי</option>
+    <option value="רונילי">רונילי</option>
+  </select>
+  <button onclick="startTracking()">התחל שיתוף מיקום חי</button>
+</div>
 
-  <div id="map"></div>
+<div id="map"></div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBR32AHPMIr52u-E28IeF8R-e2i5Z-x8i0",
-      authDomain: "family-tracker-79ffd.firebaseapp.com",
-      projectId: "family-tracker-79ffd",
-      storageBucket: "family-tracker-79ffd.firebasestorage.app",
-      messagingSenderId: "24834490381",
-      appId: "1:24834490381:web:2009bf6fef386d64",
-      measurementId: "G-EJD7F75DBJ"
-    };
+  const firebaseConfig = {
+    databaseURL: "https://family-tracker-default-rtdb.firebaseio.com"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const database = getDatabase(app);
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
-    const map = L.map('map').setView([31.0461, 34.8516], 8);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  const map = L.map('map').setView([31.0461, 34.8516], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(map);
 
-    const markers = {};
+  const markers = {};
 
-    window.startTracking = function() {
-      const name = document.getElementById('userName').value;
-      if (navigator.geolocation) {
-        navigator.geolocation.watchPosition((pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          
-          set(ref(database, 'locations/' + name), {
-            lat: lat,
-            lng: lng,
-            time: new Date().toLocaleTimeString()
-          });
-        }, (err) => alert("יש לאשר גישה ל-GPS בטלפון"), { enableHighAccuracy: true });
-      }
-    };
-
-    onValue(ref(database, 'locations'), (snapshot) => {
-      const data = snapshot.val();
-      if (!data) return;
-
-      Object.keys(data).forEach((user) => {
+  const usersRef = ref(db, 'locations');
+  onValue(usersRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      Object.keys(data).forEach(user => {
         const { lat, lng } = data[user];
         if (markers[user]) {
           markers[user].setLatLng([lat, lng]);
@@ -82,7 +58,30 @@
           markers[user] = L.marker([lat, lng]).addTo(map).bindPopup(user).openPopup();
         }
       });
-    });
-  </script>
+    }
+  });
+
+  window.startTracking = function() {
+    const userName = document.getElementById('userName').value;
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition((position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        set(ref(db, 'locations/' + userName), {
+          lat: lat,
+          lng: lng,
+          timestamp: Date.now()
+        });
+      }, (error) => {
+        alert("שגיאה בקבלת מיקום: " + error.message);
+      }, {
+        enableHighAccuracy: true
+      });
+    } else {
+      alert("הדפדפן שלך לא תומך במיקום GPS");
+    }
+  };
+</script>
+
 </body>
 </html>
