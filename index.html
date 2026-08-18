@@ -7,58 +7,78 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
-    body { background-color: #f4f6f8; display: flex; flex-direction: column; height: 100vh; }
-    header { background: #1e293b; color: white; padding: 15px; text-align: center; font-size: 1.2rem; font-weight: bold; }
-    #map { flex: 1; width: 100%; }
-    .status-panel { background: white; padding: 15px; border-radius: 16px 16px 0 0; box-shadow: 0 -4px 10px rgba(0,0,0,0.1); }
-    .user-card { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-    .user-info { display: flex; align-items: center; gap: 10px; }
-    .avatar { width: 40px; height: 40px; border-radius: 50%; background: #3b82f6; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-    .battery { font-weight: bold; color: #16a34a; }
-    .actions { display: flex; gap: 10px; margin-top: 12px; }
-    .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; cursor: pointer; }
-    .btn-safe { background-color: #22c55e; color: white; }
-    .btn-sos { background-color: #ef4444; color: white; }
+    body { margin: 0; padding: 0; font-family: sans-serif; }
+    #map { height: 80vh; width: 100vw; }
+    #controls { height: 20vh; padding: 10px; box-sizing: border-box; text-align: center; background: #f8f9fa; }
+    select, button { padding: 10px; font-size: 16px; margin: 5px; border-radius: 5px; }
+    button { background: #28a745; color: white; border: none; font-weight: bold; }
   </style>
 </head>
 <body>
-  <header>📍 מיקום משפחתי בזמן אמת</header>
-  <div id="map"></div>
-  <div class="status-panel">
-    <div class="user-card">
-      <div class="user-info">
-        <div class="avatar" style="background-color: #3b82f6;">כ</div>
-        <div>
-          <strong>כפיר</strong>
-          <div style="font-size:0.8rem; color:gray;" id="status-kfir">מעדכן מיקום...</div>
-        </div>
-      </div>
-      <div class="battery" id="bat-kfir">🔋 --%</div>
-    </div>
-    <div class="actions">
-      <button class="btn btn-safe" onclick="alert('נשלח עדכון: אני בסדר! ❤️')">❤️ אני בסדר</button>
-      <button class="btn btn-sos" onclick="alert('🚨 התראת SOS נשלחה!')">🆘 קריאת SOS</button>
-    </div>
+
+  <div id="controls">
+    <label for="userName">מי משתמש בטלפון הזה?</label><br>
+    <select id="userName">
+      <option value="כפיר">כפיר</option>
+      <option value="מירי">מירי</option>
+    </select>
+    <br>
+    <button onclick="startTracking()">התחל שיתוף מיקום חי</button>
   </div>
-  <script>
-    const map = L.map('map').setView([32.0853, 34.7818], 13);
+
+  <div id="map"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBR32AHPMIr52u-E28IeF8R-e2i5Z-x8i0",
+      authDomain: "family-tracker-79ffd.firebaseapp.com",
+      projectId: "family-tracker-79ffd",
+      storageBucket: "family-tracker-79ffd.firebasestorage.app",
+      messagingSenderId: "24834490381",
+      appId: "1:24834490381:web:2009bf6fef386d64",
+      measurementId: "G-EJD7F75DBJ"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+    const map = L.map('map').setView([31.0461, 34.8516], 8);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-    let marker;
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition((pos) => {
-        const lat = pos.coords.latitude; const lng = pos.coords.longitude;
-        if (!marker) { marker = L.marker([lat, lng]).addTo(map); }
-        else { marker.setLatLng([lat, lng]); }
-        map.setView([lat, lng], 15);
-        document.getElementById('status-kfir').innerText = 'מחובר • מיקום חי';
+
+    const markers = {};
+
+    window.startTracking = function() {
+      const name = document.getElementById('userName').value;
+      if (navigator.geolocation) {
+        navigator.geolocation.watchPosition((pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          
+          set(ref(database, 'locations/' + name), {
+            lat: lat,
+            lng: lng,
+            time: new Date().toLocaleTimeString()
+          });
+        }, (err) => alert("יש לאשר גישה ל-GPS בטלפון"), { enableHighAccuracy: true });
+      }
+    };
+
+    onValue(ref(database, 'locations'), (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      Object.keys(data).forEach((user) => {
+        const { lat, lng } = data[user];
+        if (markers[user]) {
+          markers[user].setLatLng([lat, lng]);
+        } else {
+          markers[user] = L.marker([lat, lng]).addTo(map).bindPopup(user).openPopup();
+        }
       });
-    }
-    if (navigator.getBattery) {
-      navigator.getBattery().then(b => {
-        document.getElementById('bat-kfir').innerText = `🔋 ${Math.round(b.level * 100)}%`;
-      });
-    }
+    });
   </script>
 </body>
 </html>
