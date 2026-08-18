@@ -8,11 +8,12 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     body { font-family: sans-serif; margin: 0; padding: 0; }
-    #map { width: 100%; height: 70vh; }
-    #controls { padding: 10px; height: 30vh; background: #f0f0f0; box-sizing: border-box; }
-    select, button { font-size: 16px; padding: 10px; margin: 5px 0; width: 100%; border-radius: 5px; }
+    #map { width: 100%; height: 65vh; }
+    #controls { padding: 10px; height: 35vh; background: #f0f0f0; box-sizing: border-box; }
+    select, button { font-size: 16px; padding: 10px; margin: 3px 0; width: 100%; border-radius: 5px; }
     button { background: #28a745; color: white; border: none; font-weight: bold; }
-    .btn-secondary { background: #007bff; margin-top: 2px; }
+    .btn-secondary { background: #007bff; }
+    .btn-danger { background: #dc3545; }
   </style>
 </head>
 <body>
@@ -26,13 +27,14 @@
   </select>
   <button onclick="startTracking()">התחל שיתוף מיקום חי</button>
   <button class="btn-secondary" onclick="fitAllMarkers()">הצג את כולם על המפה</button>
+  <button class="btn-danger" onclick="clearHistory()">איפוס היסטוריית מסלולים</button>
 </div>
 
 <div id="map"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
     databaseURL: "https://family-tracker-default-rtdb.firebaseio.com"
@@ -45,7 +47,16 @@
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   const markers = {};
+  const polylines = {};
 
+  // צבע מסלול ייחודי לכל אחד
+  const userColors = {
+    "כפיר": "#007bff",
+    "מירי": "#e83e8c",
+    "רונילי": "#28a745"
+  };
+
+  // עדכון מיקום נוכחי וסיכות
   const usersRef = ref(db, 'locations');
   onValue(usersRef, (snapshot) => {
     const data = snapshot.val();
@@ -72,10 +83,47 @@
     }
   });
 
+  // ציור היסטוריית המסלולים
+  const historyRef = ref(db, 'history');
+  onValue(historyRef, (snapshot) => {
+    const historyData = snapshot.val();
+    if (historyData) {
+      Object.keys(historyData).forEach(user => {
+        const userHistory = historyData[user];
+        const latLngs = [];
+
+        Object.keys(userHistory).forEach(key => {
+          const pt = userHistory[key];
+          latLngs.push([pt.lat, pt.lng]);
+        });
+
+        const color = userColors[user] || "#ffc107";
+
+        if (polylines[user]) {
+          polylines[user].setLatLngs(latLngs);
+        } else {
+          polylines[user] = L.polyline(latLngs, { color: color, weight: 5, opacity: 0.8 }).addTo(map);
+        }
+      });
+    } else {
+      // אם ההיסטוריה נמחקה – מנקים מהמפה
+      Object.keys(polylines).forEach(user => {
+        map.removeLayer(polylines[user]);
+        delete polylines[user];
+      });
+    }
+  });
+
   window.fitAllMarkers = function() {
     const group = new L.featureGroup(Object.values(markers));
     if (Object.keys(markers).length > 0) {
       map.fitBounds(group.getBounds().pad(0.2));
+    }
+  };
+
+  window.clearHistory = function() {
+    if (confirm("האם אתה בטוח שברצונך למחוק את היסטוריית המסלולים של כולם?")) {
+      remove(ref(db, 'history'));
     }
   };
 
@@ -95,14 +143,24 @@
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         const speed = position.coords.speed;
+        const now = Date.now();
 
+        // עדכון מיקום נוכחי
         set(ref(db, 'locations/' + userName), {
           lat: lat,
           lng: lng,
           speed: speed,
           battery: batteryLevel,
-          timestamp: Date.now()
+          timestamp: now
         });
+
+        // שמירת נקודה להיסטוריה
+        push(ref(db, 'history/' + userName), {
+          lat: lat,
+          lng: lng,
+          timestamp: now
+        });
+
       }, (error) => {
         alert("שגיאה בקבלת מיקום: " + error.message);
       }, {
