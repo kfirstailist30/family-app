@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מעקב בזמן אמת</title>
+    <title>מעקב לייב בזמן אמת</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body, html { height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif; display: flex; flex-direction: column; }
         #map { flex: 1; width: 100%; }
-        .controls { padding: 15px; background: #222; color: white; text-align: center; }
-        input, select { padding: 10px; width: 70%; max-width: 300px; font-size: 16px; border-radius: 5px; border: none; text-align: center; margin-bottom: 8px; }
-        button { padding: 12px 20px; width: 75%; max-width: 310px; font-size: 18px; font-weight: bold; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        #status { margin-top: 8px; font-size: 14px; color: #ddd; }
-        .mode-icon { font-size: 28px; line-height: 30px; text-align: center; }
+        .controls { padding: 12px; background: #1e1e1e; color: white; text-align: center; }
+        input, select { padding: 10px; width: 42%; font-size: 15px; border-radius: 6px; border: 1px solid #444; text-align: center; margin: 4px; }
+        button { padding: 12px; width: 90%; max-width: 320px; font-size: 16px; font-weight: bold; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 6px; }
+        #status { margin-top: 8px; font-size: 14px; font-weight: bold; color: #ffc107; }
+        .user-marker { font-size: 26px; text-align: center; line-height: 20px; text-shadow: 0 0 5px #fff; }
     </style>
 </head>
 <body>
@@ -21,15 +21,14 @@
 <div id="map"></div>
 
 <div class="controls">
-    <input type="text" id="username" placeholder="הכנס שם (למשל: כפיר)">
-    <br>
-    <select id="travel-mode">
-        <option value="🚗">🚗 נסיעה במכונית</option>
-        <option value="🚶">🚶 הליכה ברגל</option>
+    <input type="text" id="username" placeholder="הכנס שם">
+    <select id="mode">
+        <option value="🚗">🚗 מכונית</option>
+        <option value="🚶">🚶 הליכה</option>
     </select>
     <br>
-    <button id="start-btn">התחל הקלטת מסלול</button>
-    <div id="status">ממתין להפעלה...</div>
+    <button id="start-btn">התחל שיתוף בלייב 🔴</button>
+    <div id="status">ממתין להפעלת GPS...</div>
 </div>
 
 <script type="module">
@@ -42,64 +41,61 @@
     projectId: "family-tracking",
     storageBucket: "family-tracking.appspot.com",
     messagingSenderId: "2483449038",
-    appId: "1:2483449038:web: family-tracking"
+    appId: "1:2483449038:web:family-tracking"
   };
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
-  const map = L.map('map').setView([31.5, 34.75], 7);
+  const map = L.map('map').setView([31.5, 34.75], 8);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   let markers = {};
-  let polylines = {};
-  let firstCenter = false;
+  let paths = {};
+  let myName = "";
+  let firstFix = false;
 
-  function createCustomIcon(symbol) {
+  function createIcon(symbol, label) {
     return L.divIcon({
-      html: `<div class="mode-icon">${symbol}</div>`,
+      html: `<div class="user-marker">${symbol}<br><span style="font-size:11px; background:rgba(0,0,0,0.8); color:white; padding:2px 6px; border-radius:4px; font-family:sans-serif;">${label}</span></div>`,
       className: '',
-      iconSize: [30, 30],
-      iconAnchor: [15, 15]
+      iconSize: [60, 60],
+      iconAnchor: [30, 30]
     });
   }
 
   document.getElementById('start-btn').addEventListener('click', () => {
-    const name = document.getElementById('username').value.trim();
-    const mode = document.getElementById('travel-mode').value;
-    if (!name) return alert('נא להכניס שם');
+    myName = document.getElementById('username').value.trim();
+    const mode = document.getElementById('mode').value;
+    if (!myName) return alert('נא להזין שם לפני ההפעלה');
 
-    document.getElementById('status').innerText = "מאתר GPS עבור " + name + "...";
+    document.getElementById('status').innerText = "🔴 משדר לייב פעיל עבור: " + myName;
 
     if ("geolocation" in navigator) {
       navigator.geolocation.watchPosition((pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
 
-        if (!firstCenter) {
+        if (!firstFix) {
           map.setView([lat, lng], 16);
-          map.invalidateSize();
-          firstCenter = true;
+          firstFix = true;
+        } else {
+          map.panTo([lat, lng]);
         }
 
-        set(ref(db, 'users/' + name + '/last'), {
-          name: name,
+        set(ref(db, 'users/' + myName + '/last'), {
+          name: myName,
           lat: lat,
           lng: lng,
           mode: mode,
           time: Date.now()
         });
 
-        push(ref(db, 'users/' + name + '/path'), {
-          lat: lat,
-          lng: lng,
-          time: Date.now()
-        });
+        push(ref(db, 'users/' + myName + '/path'), { lat, lng, time: Date.now() });
 
-        document.getElementById('status').innerText = "מקליט מסלול בזמן אמת (" + mode + ")";
       }, (err) => {
-        document.getElementById('status').innerText = "שגיאת GPS: נא לאשר מיקום בטלפון";
-      }, { enableHighAccuracy: true, maximumAge: 0 });
+        document.getElementById('status').innerText = "❌ שגיאת GPS: נא לאשר מיקום בטלפון";
+      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
     }
   });
 
@@ -107,36 +103,33 @@
     const users = snapshot.val();
     if (!users) return;
 
-    Object.keys(users).forEach((userName) => {
-      const userData = users[userName];
+    Object.keys(users).forEach((uName) => {
+      const uData = users[uName];
 
-      if (userData.last && userData.last.lat && userData.last.lng) {
-        const lat = userData.last.lat;
-        const lng = userData.last.lng;
-        const modeSymbol = userData.last.mode || '🚗';
+      if (uData.last && uData.last.lat && uData.last.lng) {
+        const lat = uData.last.lat;
+        const lng = uData.last.lng;
+        const mode = uData.last.mode || '📍';
 
-        if (markers[userName]) {
-          markers[userName].setLatLng([lat, lng]);
-          markers[userName].setIcon(createCustomIcon(modeSymbol));
+        if (markers[uName]) {
+          markers[uName].setLatLng([lat, lng]);
+          markers[uName].setIcon(createIcon(mode, uName));
         } else {
-          markers[userName] = L.marker([lat, lng], { icon: createCustomIcon(modeSymbol) })
-            .addTo(map)
-            .bindPopup(userName + ' ' + modeSymbol)
-            .openPopup();
+          markers[uName] = L.marker([lat, lng], { icon: createIcon(mode, uName) }).addTo(map);
         }
       }
 
-      if (userData.path) {
-        const points = Object.values(userData.path).map(p => [p.lat, p.lng]);
-        if (polylines[userName]) {
-          polylines[userName].setLatLngs(points);
+      if (uData.path) {
+        const pts = Object.values(uData.path).map(p => [p.lat, p.lng]);
+        if (paths[uName]) {
+          paths[uName].setLatLngs(pts);
         } else {
-          polylines[userName] = L.polyline(points, { color: '#0066ff', weight: 5 }).addTo(map);
+          const color = (uName === myName) ? '#0066ff' : '#ff0055';
+          paths[uName] = L.polyline(pts, { color: color, weight: 5 }).addTo(map);
         }
       }
     });
   });
 </script>
-
 </body>
 </html>
