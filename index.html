@@ -3,134 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מפה משפחתית חיה</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <style>
-        body { font-family: sans-serif; margin: 0; padding: 10px; background: #f4f4f9; text-align: center; }
-        #controls { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); margin-bottom: 10px; }
-        select, button { width: 100%; padding: 12px; margin: 5px 0; font-size: 16px; border-radius: 8px; border: none; font-weight: bold; }
-        .btn-green { background: #28a745; color: white; }
-        .btn-blue { background: #007bff; color: white; }
-        .btn-red { background: #dc3545; color: white; }
-        #map { height: 55vh; width: 100%; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-    </style>
+    <title>מעקב משפחתי</title>
 </head>
 <body>
 
-<div id="controls">
-    <label><b>מי משתמש בטלפון הזה?</b></label>
-    <select id="userSelect">
-        <option value="כפיר">כפיר</option>
-        <option value="מירי">מירי</option>
-        <option value="רונילי">רונילי</option>
-    </select>
-    <button class="btn-green" onclick="startSharing()">התחל שיתוף מיקום חי</button>
-    <button class="btn-blue" onclick="showAllOnMap()">הצג את כולם על המפה</button>
-    <button class="btn-red" onclick="resetTracks()">איפוס היסטוריית מסלולים</button>
-</div>
-
-<div id="map"></div>
-
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // אם יש לך פרטי Firebase אמיתיים, הדבק אותם כאן:
-    const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        databaseURL: "https://YOUR_PROJECT_ID.firebaseio.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_ID",
-        appId: "YOUR_APP_ID"
-    };
+  // הגדרות Firebase
+  const firebaseConfig = {
+    apiKey: "AIzaSyBR3A...",
+    authDomain: "family-tracking.firebaseapp.com",
+    databaseURL: "https://family-tracking.firebaseio.com",
+    projectId: "family-tracking",
+    storageBucket: "family-tracking.appspot.com",
+    messagingSenderId: "2483449038...",
+    appId: "1:2483449038...:web:...",
+    measurementId: "G-EJ..."
+  };
 
-    let db = null;
-    try {
-        if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
-            const app = initializeApp(firebaseConfig);
-            db = getDatabase(app);
-        }
-    } catch (e) {
-        console.log("Firebase עדיין לא מוגדר");
-    }
-
-    const map = L.map('map').setView([31.5, 34.75], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-
-    let markers = {};
-    let isFirstLocation = true;
-
-    // הפעלת שיתוף מיקום
-    window.startSharing = function() {
-        const user = document.getElementById('userSelect').value;
-        if (!navigator.geolocation) return alert("הדפדפן אינו תומך בשיתוף מיקום");
-
-        navigator.geolocation.watchPosition((pos) => {
-            const { latitude, longitude } = pos.coords;
-
-            // 1. ציור הסיכה על המפה המקומית מיד!
-            if (markers[user]) {
-                markers[user].setLatLng([latitude, longitude]);
-            } else {
-                markers[user] = L.marker([latitude, longitude]).addTo(map)
-                    .bindPopup(`<b>${user}</b><br>אני כאן!`)
-                    .openPopup();
-            }
-
-            // זום על המיקום בפעם הראשונה בלבד
-            if (isFirstLocation) {
-                map.setView([latitude, longitude], 15);
-                isFirstLocation = false;
-            }
-
-            // 2. שליחה לשרת הענן (אם הוגדר)
-            if (db) {
-                set(ref(db, 'locations/' + user), { lat: latitude, lng: longitude });
-            }
-        }, (error) => {
-            alert("שגיאה בקבלת מיקום: " + error.message);
-        }, { enableHighAccuracy: true });
-
-        alert("שיתוף מיקום הופעל!");
-    };
-
-    // הצגת כולם מתוך הענן
-    window.showAllOnMap = function() {
-        if (!db) {
-            return alert("כדי לראות משתמשים מטלפונים אחרים יש להזין את מפתחות ה-Firebase בקוד.");
-        }
-        onValue(ref(db, 'locations/'), (snapshot) => {
-            const data = snapshot.val();
-            if (!data) return;
-            for (let user in data) {
-                const { lat, lng } = data[user];
-                if (markers[user]) {
-                    markers[user].setLatLng([lat, lng]);
-                } else {
-                    markers[user] = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${user}</b>`);
-                }
-            }
-        });
-    };
-
-    // איפוס
-    window.resetTracks = function() {
-        if (confirm("האם אתה בטוח שברצונך לאפס את המפה?")) {
-            for (let user in markers) {
-                map.removeLayer(markers[user]);
-            }
-            markers = {};
-            isFirstLocation = true;
-            if (db) {
-                remove(ref(db, 'locations/'));
-            }
-            alert("המפה אופסה בהצלחה!");
-        }
-    };
+  // אתחול Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 </script>
 
 </body>
