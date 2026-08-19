@@ -13,7 +13,8 @@
         select { border: 1px solid #ccc; background: #fff; }
         .btn-green { background: #28a745; color: white; }
         .btn-blue { background: #007bff; color: white; }
-        #map { height: 65vh; width: 100%; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .btn-red { background: #dc3545; color: white; }
+        #map { height: 60vh; width: 100%; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
@@ -28,12 +29,12 @@
 
     <button class="btn-green" onclick="startSharing()">התחל שיתוף מיקום חי</button>
     <button class="btn-blue" onclick="showAllOnMap()">הצג את כולם על המפה</button>
+    <button class="btn-red" onclick="resetTracks()">איפוס היסטוריית מסלולים</button>
 </div>
 
 <div id="map"></div>
 
 <script>
-    // אתחול מפה בסיסית
     const map = L.map('map').setView([31.5, 34.75], 10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap'
@@ -43,7 +44,6 @@
 
     function startSharing() {
         const selectedUser = document.getElementById('userSelect').value;
-        alert("מתחיל לאתר מיקום עבור: " + selectedUser);
 
         if ("geolocation" in navigator) {
             navigator.geolocation.watchPosition(
@@ -61,12 +61,12 @@
                     map.setView([lat, lng], 15);
                 },
                 (error) => {
-                    alert("שגיאה בקבלת מיקום: " + error.message + "\nודא שה-GPS פועל והרשאת מיקום מאושרת בדפדפן.");
+                    alert("שגיאה בקבלת מיקום: " + error.message);
                 },
                 { enableHighAccuracy: true }
             );
         } else {
-            alert("הדפדפן שלך אינו תומך בשיתוף מיקום.");
+            alert("הדפדפן אינו תומך בשיתוף מיקום.");
         }
     }
 
@@ -75,6 +75,16 @@
             map.setView(userMarker.getLatLng(), 15);
         } else {
             alert("עדיין לא הופעל שיתוף מיקום בטלפון הזה.");
+        }
+    }
+
+    function resetTracks() {
+        if (confirm("האם אתה בטוח שברצונך לאפס את כל המסלולים?")) {
+            if (userMarker) {
+                map.removeLayer(userMarker);
+                userMarker = null;
+            }
+            alert("היסטוריית המסלולים ואופסה בהצלחה!");
         }
     }
 </script>
