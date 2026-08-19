@@ -41,6 +41,7 @@
     }).addTo(map);
 
     let userMarker = null;
+    let isFirstLocation = true; // דגל לבדיקה אם זו הפעם הראשונה שמקבלים מיקום
 
     function startSharing() {
         const selectedUser = document.getElementById('userSelect').value;
@@ -58,7 +59,12 @@
                             .bindPopup(`<b>${selectedUser}</b><br>אני כאן!`)
                             .openPopup();
                     }
-                    map.setView([lat, lng], 15);
+
+                    // ממרכז את המפה רק בפעם הראשונה כדי לא להפריע לזום של המשתמש
+                    if (isFirstLocation) {
+                        map.setView([lat, lng], 15);
+                        isFirstLocation = false;
+                    }
                 },
                 (error) => {
                     alert("שגיאה בקבלת מיקום: " + error.message);
@@ -84,7 +90,8 @@
                 map.removeLayer(userMarker);
                 userMarker = null;
             }
-            alert("היסטוריית המסלולים ואופסה בהצלחה!");
+            isFirstLocation = true;
+            alert("היסטוריית המסלולים אופסה בהצלחה!");
         }
     }
 </script>
