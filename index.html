@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מעקב משפחתי</title>
+    <title>מעקב והקלטת מסלול משפחתי</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
         #map { flex: 1; width: 100%; }
         .controls { padding: 15px; background: #f8f9fa; text-align: center; box-shadow: 0 -2px 5px rgba(0,0,0,0.1); }
         input, button { padding: 10px 14px; margin: 5px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; }
-        button { background-color: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
+        button { background-color: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -19,21 +19,21 @@
 
 <div class="controls">
     <div id="setup-container">
-        <input type="text" id="username" placeholder="הכנס שם (כגון: כפיר)">
-        <button id="start-btn">התחל שיתוף מיקום</button>
+        <input type="text" id="username" placeholder="הכנס שם כלשהו">
+        <button id="start-btn">התחל הקלטת מסלול</button>
     </div>
-    <p id="status">הכנס שם ולחץ על הכפתור כדי להופיע על המפה</p>
+    <p id="status">הכנס שם ולחץ על הכפתור כדי להתחיל להקליט מסלול</p>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-  // הגדרות ה-Firebase המלאות מתוך המסך שלך
+  // הגדרות Firebase
   const firebaseConfig = {
-    apiKey: "AIzaSyBR32A...", // הקוד מוגדר לפי הפרויקט שלך
+    apiKey: "AIzaSyBR32A...", 
     authDomain: "family-tracking.firebaseapp.com",
     databaseURL: "https://family-tracking.firebaseio.com",
     projectId: "family-tracking",
@@ -50,8 +50,8 @@
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   const markers = {};
+  const polylines = {};
 
-  // הפעלת מעקב GPS ושליחה ל-Firebase
   document.getElementById('start-btn').addEventListener('click', () => {
     const name = document.getElementById('username').value.trim();
     if (!name) {
@@ -60,43 +60,61 @@
     }
 
     if ("geolocation" in navigator) {
-      document.getElementById('status').innerText = "מאתר מיקום GPS...";
+      document.getElementById('status').innerText = "מאתר GPS ומקליט מסלול עבור " + name + "...";
       
       navigator.geolocation.watchPosition((position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
 
-        set(ref(db, 'locations/' + name), {
+        // 1. עדכון המיקום הנוכחי
+        set(ref(db, 'locations/' + name + '/current'), {
           name: name,
           lat: lat,
           lng: lng,
           timestamp: Date.now()
         });
 
-        document.getElementById('status').innerText = "מיקום משותף בזמן אמת!";
-        map.setView([lat, lng], 14);
+        // 2. הוספת הנקודה להיסטוריית המסלול (שמירת כל המסלול)
+        push(ref(db, 'locations/' + name + '/path'), {
+          lat: lat,
+          lng: lng,
+          timestamp: Date.now()
+        });
+
+        document.getElementById('status').innerText = "מקליט מסלול בזמן אמת עבור " + name;
       }, (error) => {
-        document.getElementById('status').innerText = "שגיאה: אשרי הרשאת מיקום בדפדפן";
+        document.getElementById('status').innerText = "שגיאה: נא לאשר הרשאת מיקום בדפדפן";
       }, { enableHighAccuracy: true });
-    } else {
-      alert("המכשיר אינו תומך ב-GPS בדפדפן");
     }
   });
 
-  // האזנה לכל המיקומים ב-Firebase והצגת סיכות
+  // האזנה לשינויים ב-Firebase והצגת הסיכות + המסלולים
   const locationsRef = ref(db, 'locations');
   onValue(locationsRef, (snapshot) => {
     const data = snapshot.val();
     if (data) {
-      Object.keys(data).forEach((id) => {
-        const user = data[id];
-        if (user.lat && user.lng) {
-          if (markers[id]) {
-            markers[id].setLatLng([user.lat, user.lng]);
+      Object.keys(data).forEach((userKey) => {
+        const userData = data[userKey];
+        
+        // הצגת הסיכה של המיקום הנוכחי
+        if (userData.current && userData.current.lat && userData.current.lng) {
+          const current = userData.current;
+          if (markers[userKey]) {
+            markers[userKey].setLatLng([current.lat, current.lng]);
           } else {
-            markers[id] = L.marker([user.lat, user.lng]).addTo(map)
-              .bindPopup(user.name)
+            markers[userKey] = L.marker([current.lat, current.lng]).addTo(map)
+              .bindPopup(current.name)
               .openPopup();
+          }
+        }
+
+        // ציור קו המסלול
+        if (userData.path) {
+          const pathCoords = Object.values(userData.path).map(pt => [pt.lat, pt.lng]);
+          if (polylines[userKey]) {
+            polylines[userKey].setLatLngs(pathCoords);
+          } else {
+            polylines[userKey] = L.polyline(pathCoords, { color: 'blue', weight: 4, opacity: 0.7 }).addTo(map);
           }
         }
       });
