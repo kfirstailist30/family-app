@@ -10,10 +10,10 @@
         body, html { height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif; display: flex; flex-direction: column; }
         #map { flex: 1; width: 100%; }
         .controls { padding: 12px; background: #1e1e1e; color: white; text-align: center; }
-        input, select { padding: 10px; width: 42%; font-size: 15px; border-radius: 6px; border: 1px solid #444; text-align: center; margin: 4px; }
+        input, select { padding: 10px; width: 40%; font-size: 15px; border-radius: 6px; border: 1px solid #444; text-align: center; margin: 4px; }
         button { padding: 12px; width: 90%; max-width: 320px; font-size: 16px; font-weight: bold; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 6px; }
         #status { margin-top: 8px; font-size: 14px; font-weight: bold; color: #ffc107; }
-        .user-marker { font-size: 26px; text-align: center; line-height: 20px; text-shadow: 0 0 5px #fff; }
+        .user-marker { font-size: 28px; text-align: center; line-height: 1.1; text-shadow: 0 0 5px #fff; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -25,6 +25,8 @@
     <select id="mode">
         <option value="🚗">🚗 מכונית</option>
         <option value="🚶">🚶 הליכה</option>
+        <option value="🏍️">🏍️ אופנוע</option>
+        <option value="🏎️">🏎️ באגי/טרקטורון</option>
     </select>
     <br>
     <button id="start-btn">התחל שיתוף בלייב 🔴</button>
@@ -33,7 +35,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
     authDomain: "family-tracking.firebaseapp.com",
@@ -51,84 +53,87 @@
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   let markers = {};
-  let paths = {};
   let myName = "";
-  let firstFix = false;
+  let firstFix = true;
 
   function createIcon(symbol, label) {
     return L.divIcon({
-      html: `<div class="user-marker">${symbol}<br><span style="font-size:11px; background:rgba(0,0,0,0.8); color:white; padding:2px 6px; border-radius:4px; font-family:sans-serif;">${label}</span></div>`,
+      html: `<div class="user-marker">${symbol}<br><span style="font-size:11px; background:rgba(0,0,0,0.85); color:white; padding:2px 6px; border-radius:4px; font-weight:bold;">${label}</span></div>`,
       className: '',
-      iconSize: [60, 60],
-      iconAnchor: [30, 30]
+      iconSize: [50, 50],
+      iconAnchor: [25, 25]
     });
   }
 
+  // האזנה בזמן אמת לכל המשתמשים ב-Firebase
+  const locationsRef = ref(db, 'locations');
+  onValue(locationsRef, (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+
+    Object.keys(data).forEach((userKey) => {
+      const user = data[userKey];
+      if (!user.lat || !user.lng) return;
+
+      const latLng = [user.lat, user.lng];
+      const symbol = user.mode || '📍';
+      const label = user.name || userKey;
+
+      if (markers[userKey]) {
+        // עדכון מיקום ואייקון של מרקר קיים
+        markers[userKey].setLatLng(latLng);
+        markers[userKey].setIcon(createIcon(symbol, label));
+      } else {
+        // יצירת מרקר חדש למשתמש
+        markers[userKey] = L.marker(latLng, { icon: createIcon(symbol, label) }).addTo(map);
+      }
+
+      // התמקדות ראשונית במיקום שלי
+      if (userKey === myName && firstFix) {
+        map.setView(latLng, 16);
+        firstFix = false;
+      }
+    });
+  });
+
+  // לחיצה על כפתור התחלת שיתוף
   document.getElementById('start-btn').addEventListener('click', () => {
-    myName = document.getElementById('username').value.trim();
-    const mode = document.getElementById('mode').value;
-    if (!myName) return alert('נא להזין שם לפני ההפעלה');
+    const nameInput = document.getElementById('username').value.trim();
+    const modeInput = document.getElementById('mode').value;
 
-    document.getElementById('status').innerText = "🔴 משדר לייב פעיל עבור: " + myName;
+    if (!nameInput) {
+      alert('נא להזין שם לפני התחלת השיתוף');
+      return;
+    }
 
-    if ("geolocation" in navigator) {
+    myName = nameInput;
+    document.getElementById('status').innerText = 'משדר לייב פעיל עבור: ' + myName;
+    document.getElementById('start-btn').style.background = '#dc3545';
+    document.getElementById('start-btn').innerText = 'משדר בשידור חי... 📡';
+
+    if ('geolocation' in navigator) {
       navigator.geolocation.watchPosition((pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
 
-        if (!firstFix) {
-          map.setView([lat, lng], 16);
-          firstFix = true;
-        } else {
-          map.panTo([lat, lng]);
-        }
-
-        set(ref(db, 'users/' + myName + '/last'), {
+        // שליחת המיקום המעודכן ל-Firebase
+        set(ref(db, 'locations/' + myName), {
           name: myName,
+          mode: modeInput,
           lat: lat,
           lng: lng,
-          mode: mode,
-          time: Date.now()
+          timestamp: Date.now()
         });
-
-        push(ref(db, 'users/' + myName + '/path'), { lat, lng, time: Date.now() });
-
       }, (err) => {
-        document.getElementById('status').innerText = "❌ שגיאת GPS: נא לאשר מיקום בטלפון";
-      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+        document.getElementById('status').innerText = 'שגיאת GPS: ' + err.message;
+      }, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000
+      });
+    } else {
+      alert('הדפדפן שלך אינו תומך ברכיב GPS');
     }
-  });
-
-  onValue(ref(db, 'users'), (snapshot) => {
-    const users = snapshot.val();
-    if (!users) return;
-
-    Object.keys(users).forEach((uName) => {
-      const uData = users[uName];
-
-      if (uData.last && uData.last.lat && uData.last.lng) {
-        const lat = uData.last.lat;
-        const lng = uData.last.lng;
-        const mode = uData.last.mode || '📍';
-
-        if (markers[uName]) {
-          markers[uName].setLatLng([lat, lng]);
-          markers[uName].setIcon(createIcon(mode, uName));
-        } else {
-          markers[uName] = L.marker([lat, lng], { icon: createIcon(mode, uName) }).addTo(map);
-        }
-      }
-
-      if (uData.path) {
-        const pts = Object.values(uData.path).map(p => [p.lat, p.lng]);
-        if (paths[uName]) {
-          paths[uName].setLatLngs(pts);
-        } else {
-          const color = (uName === myName) ? '#0066ff' : '#ff0055';
-          paths[uName] = L.polyline(pts, { color: color, weight: 5 }).addTo(map);
-        }
-      }
-    });
   });
 </script>
 </body>
