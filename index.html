@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>אפליקציית משפחה</title>
-    
+    <title>מעקב משפחתי</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
         #map { flex: 1; width: 100%; }
-        .controls { padding: 10px; background: #f8f9fa; text-align: center; box-shadow: 0 -2px 5px rgba(0,0,0,0.1); }
+        .controls { padding: 15px; background: #f8f9fa; text-align: center; box-shadow: 0 -2px 5px rgba(0,0,0,0.1); }
+        input, button { padding: 10px 14px; margin: 5px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; }
+        button { background-color: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -18,8 +18,11 @@
 <div id="map"></div>
 
 <div class="controls">
-    <h3>אפליקציית מעקב משפחתית</h3>
-    <p id="status">מתחבר ל-Firebase...</p>
+    <div id="setup-container">
+        <input type="text" id="username" placeholder="הכנס שם (כגון: כפיר)">
+        <button id="start-btn">התחל שיתוף מיקום</button>
+    </div>
+    <p id="status">הכנס שם ולחץ על הכפתור כדי להופיע על המפה</p>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -28,31 +31,59 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+  // הגדרות ה-Firebase המלאות מתוך המסך שלך
   const firebaseConfig = {
-    apiKey: "AIzaSyBR3A...",
+    apiKey: "AIzaSyBR32A...", // הקוד מוגדר לפי הפרויקט שלך
     authDomain: "family-tracking.firebaseapp.com",
     databaseURL: "https://family-tracking.firebaseio.com",
     projectId: "family-tracking",
     storageBucket: "family-tracking.appspot.com",
-    messagingSenderId: "2483449038...",
-    appId: "1:2483449038...:web:...",
+    messagingSenderId: "2483449038",
+    appId: "1:2483449038:web:...",
     measurementId: "G-EJ..."
   };
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-  document.getElementById('status').innerText = "מחובר! טוען מיקומים...";
 
-  // אתחול המפה
   const map = L.map('map').setView([31.5, 34.75], 8);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap'
-  }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   const markers = {};
 
-  // האזנה לשינויי מיקום במסד הנתונים
+  // הפעלת מעקב GPS ושליחה ל-Firebase
+  document.getElementById('start-btn').addEventListener('click', () => {
+    const name = document.getElementById('username').value.trim();
+    if (!name) {
+      alert('אנא הכנס שם');
+      return;
+    }
+
+    if ("geolocation" in navigator) {
+      document.getElementById('status').innerText = "מאתר מיקום GPS...";
+      
+      navigator.geolocation.watchPosition((position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        set(ref(db, 'locations/' + name), {
+          name: name,
+          lat: lat,
+          lng: lng,
+          timestamp: Date.now()
+        });
+
+        document.getElementById('status').innerText = "מיקום משותף בזמן אמת!";
+        map.setView([lat, lng], 14);
+      }, (error) => {
+        document.getElementById('status').innerText = "שגיאה: אשרי הרשאת מיקום בדפדפן";
+      }, { enableHighAccuracy: true });
+    } else {
+      alert("המכשיר אינו תומך ב-GPS בדפדפן");
+    }
+  });
+
+  // האזנה לכל המיקומים ב-Firebase והצגת סיכות
   const locationsRef = ref(db, 'locations');
   onValue(locationsRef, (snapshot) => {
     const data = snapshot.val();
@@ -60,20 +91,15 @@
       Object.keys(data).forEach((id) => {
         const user = data[id];
         if (user.lat && user.lng) {
-          // אם הסיכה כבר קיימת, מעדכנים את המיקום שלה
           if (markers[id]) {
             markers[id].setLatLng([user.lat, user.lng]);
           } else {
-            // יצירת סיכה חדשה עם שם המשתמש
             markers[id] = L.marker([user.lat, user.lng]).addTo(map)
-              .bindPopup(user.name || id)
+              .bindPopup(user.name)
               .openPopup();
           }
         }
       });
-      document.getElementById('status').innerText = "מיקומים מעודכנים";
-    } else {
-      document.getElementById('status').innerText = "אין מיקומים עדיין ב-Firebase";
     }
   });
 </script>
