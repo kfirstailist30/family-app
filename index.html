@@ -3,17 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מעקב משפחתי</title>
+    <title>אפליקציית משפחה</title>
+    
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #map {
+            flex: 1;
+            width: 100%;
+        }
+        .controls {
+            padding: 10px;
+            background: #f8f9fa;
+            text-align: center;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+        }
+    </style>
 </head>
 <body>
 
+<div id="map"></div>
+
+<div class="controls">
+    <h3>אפליקציית מעקב משפחתית</h3>
+    <p id="status">מתחבר ל-Firebase...</p>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Firebase Application Logic -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-  // הגדרות Firebase
+  // Firebase Configuration
   const firebaseConfig = {
-    apiKey: "AIzaSyBR3A...",
+    apiKey: "AIzaSyBR3A...", // תוודא שאתה מזין את המפתח המלא מ-Firebase במידת הצורך
     authDomain: "family-tracking.firebaseapp.com",
     databaseURL: "https://family-tracking.firebaseio.com",
     projectId: "family-tracking",
@@ -23,9 +58,22 @@
     measurementId: "G-EJ..."
   };
 
-  // אתחול Firebase
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+  // Initialize Firebase
+  try {
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    document.getElementById('status').innerText = "מחובר בהצלחה!";
+  } catch (e) {
+    console.log("שגיאה בחיבור ל-Firebase", e);
+    document.getElementById('status').innerText = "שגיאה בחיבור";
+  }
+
+  // Initialize Map
+  const map = L.map('map').setView([31.5, 34.75], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+  }).addTo(map);
 </script>
 
 </body>
