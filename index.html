@@ -5,28 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>אפליקציית משפחה</title>
     
-    <!-- Leaflet CSS for Map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-        #map {
-            flex: 1;
-            width: 100%;
-        }
-        .controls {
-            padding: 10px;
-            background: #f8f9fa;
-            text-align: center;
-            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
-        }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+        #map { flex: 1; width: 100%; }
+        .controls { padding: 10px; background: #f8f9fa; text-align: center; box-shadow: 0 -2px 5px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
@@ -38,17 +22,14 @@
     <p id="status">מתחבר ל-Firebase...</p>
 </div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Firebase Application Logic -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-  // Firebase Configuration
   const firebaseConfig = {
-    apiKey: "AIzaSyBR3A...", // תוודא שאתה מזין את המפתח המלא מ-Firebase במידת הצורך
+    apiKey: "AIzaSyBR3A...",
     authDomain: "family-tracking.firebaseapp.com",
     databaseURL: "https://family-tracking.firebaseio.com",
     projectId: "family-tracking",
@@ -58,22 +39,43 @@
     measurementId: "G-EJ..."
   };
 
-  // Initialize Firebase
-  try {
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    document.getElementById('status').innerText = "מחובר בהצלחה!";
-  } catch (e) {
-    console.log("שגיאה בחיבור ל-Firebase", e);
-    document.getElementById('status').innerText = "שגיאה בחיבור";
-  }
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  document.getElementById('status').innerText = "מחובר! טוען מיקומים...";
 
-  // Initialize Map
+  // אתחול המפה
   const map = L.map('map').setView([31.5, 34.75], 8);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap'
   }).addTo(map);
+
+  const markers = {};
+
+  // האזנה לשינויי מיקום במסד הנתונים
+  const locationsRef = ref(db, 'locations');
+  onValue(locationsRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      Object.keys(data).forEach((id) => {
+        const user = data[id];
+        if (user.lat && user.lng) {
+          // אם הסיכה כבר קיימת, מעדכנים את המיקום שלה
+          if (markers[id]) {
+            markers[id].setLatLng([user.lat, user.lng]);
+          } else {
+            // יצירת סיכה חדשה עם שם המשתמש
+            markers[id] = L.marker([user.lat, user.lng]).addTo(map)
+              .bindPopup(user.name || id)
+              .openPopup();
+          }
+        }
+      });
+      document.getElementById('status').innerText = "מיקומים מעודכנים";
+    } else {
+      document.getElementById('status').innerText = "אין מיקומים עדיין ב-Firebase";
+    }
+  });
 </script>
 
 </body>
