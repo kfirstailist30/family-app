@@ -13,7 +13,7 @@
         input, select { padding: 10px; width: 70%; max-width: 300px; font-size: 16px; border-radius: 5px; border: none; text-align: center; margin-bottom: 8px; }
         button { padding: 12px 20px; width: 75%; max-width: 310px; font-size: 18px; font-weight: bold; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
         #status { margin-top: 8px; font-size: 14px; color: #ddd; }
-        .mode-icon { font-size: 24px; line-height: 30px; text-align: center; }
+        .mode-icon { font-size: 28px; line-height: 30px; text-align: center; }
     </style>
 </head>
 <body>
@@ -37,14 +37,12 @@
   import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
-    apiKey: "AIzaSyBR32A...", 
     authDomain: "family-tracking.firebaseapp.com",
     databaseURL: "https://family-tracking.firebaseio.com",
     projectId: "family-tracking",
     storageBucket: "family-tracking.appspot.com",
     messagingSenderId: "2483449038",
-    appId: "1:2483449038:web:...",
-    measurementId: "G-EJ..."
+    appId: "1:2483449038:web: family-tracking"
   };
 
   const app = initializeApp(firebaseConfig);
@@ -57,7 +55,6 @@
   let polylines = {};
   let firstCenter = false;
 
-  // פונקציה ליצירת אייקון מותאם (רכב או רגל)
   function createCustomIcon(symbol) {
     return L.divIcon({
       html: `<div class="mode-icon">${symbol}</div>`,
@@ -116,7 +113,7 @@
       if (userData.last && userData.last.lat && userData.last.lng) {
         const lat = userData.last.lat;
         const lng = userData.last.lng;
-        const modeSymbol = userData.last.mode || '📍';
+        const modeSymbol = userData.last.mode || '🚗';
 
         if (markers[userName]) {
           markers[userName].setLatLng([lat, lng]);
@@ -143,4 +140,3 @@
 
 </body>
 </html>
-
