@@ -3,17 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מעקב לייב משפחתי</title>
+    <title>מעקב והקלטת מסלולים משפחתי</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body, html { height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif; display: flex; flex-direction: column; }
         #map { flex: 1; width: 100%; }
-        .controls { padding: 12px; background: #1e1e1e; color: white; text-align: center; }
-        input, select { padding: 10px; width: 40%; font-size: 15px; border-radius: 6px; border: 1px solid #444; text-align: center; margin: 4px; }
-        button { padding: 12px; width: 90%; max-width: 320px; font-size: 16px; font-weight: bold; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 6px; }
-        #status { margin-top: 8px; font-size: 14px; font-weight: bold; color: #ffc107; }
-        #distance-info { margin-top: 6px; font-size: 13px; color: #00e676; font-weight: bold; }
+        .controls { padding: 10px; background: #1e1e1e; color: white; text-align: center; }
+        input, select { padding: 8px; width: 42%; font-size: 14px; border-radius: 6px; border: 1px solid #444; text-align: center; margin: 3px; }
+        .btn-group { display: flex; justify-content: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+        button { padding: 10px 14px; font-size: 14px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        #start-btn { background: #28a745; }
+        #record-btn { background: #ff9800; }
+        #history-btn { background: #0288d1; }
+        #status { margin-top: 6px; font-size: 13px; font-weight: bold; color: #ffc107; }
+        #distance-info { margin-top: 4px; font-size: 12px; color: #00e676; font-weight: bold; }
         .user-marker { font-size: 28px; text-align: center; line-height: 1.1; white-space: nowrap; }
         .marker-card { background: rgba(0,0,0,0.85); color: white; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; display: inline-block; }
     </style>
@@ -23,22 +27,33 @@
 <div id="map"></div>
 
 <div class="controls">
-    <input type="text" id="username" placeholder="הכנס שם">
-    <select id="mode">
-        <option value="🚗">🚗 מכונית</option>
-        <option value="🚶">🚶 הליכה</option>
-        <option value="🏍️">🏍️ אופנוע</option>
-        <option value="🏎️">🏎️ באגי/טרקטורון</option>
-    </select>
-    <br>
-    <button id="start-btn">התחל שיתוף בלייב 🔴</button>
+    <div>
+        <input type="text" id="username" placeholder="הכנס שם">
+        <select id="mode">
+            <option value="🚗">🚗 מכונית</option>
+            <option value="🚶">🚶 הליכה</option>
+            <option value="🏍️">🏍️ אופנוע</option>
+            <option value="🏎️">🏎️ באגי/טרקטורון</option>
+        </select>
+    </div>
+    
+    <div class="btn-group">
+        <button id="start-btn">שיתוף לייב 🔴</button>
+        <button id="record-btn">התחל הקלטה ⏺️</button>
+    </div>
+
+    <div style="margin-top: 6px;">
+        <input type="date" id="history-date">
+        <button id="history-btn">הצג היסטוריה 📅</button>
+    </div>
+
     <div id="status">ממתין להפעלת GPS...</div>
     <div id="distance-info"></div>
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, push, onValue, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
     authDomain: "family-tracker-79ffd.firebaseapp.com",
@@ -60,24 +75,28 @@
   let myName = "";
   let firstFix = true;
   let batteryLevel = null;
+  let isRecording = false;
+  let currentPolyline = null;
+  let historyPolyline = null;
+  let recordedPoints = [];
 
-  // טעינת שם ומצב שנשמרו בזיכרון המכשיר בלחיצות קודמות
+  // ברירת מחדל לתאריך של היום בתיבת ההיסטוריה
+  const todayStr = new Date().toISOString().split('T')[0];
+  document.getElementById('history-date').value = todayStr;
+
+  // טעינת זיכרון מקומי
   const savedName = localStorage.getItem('tracker_username');
   const savedMode = localStorage.getItem('tracker_mode');
   if (savedName) document.getElementById('username').value = savedName;
   if (savedMode) document.getElementById('mode').value = savedMode;
 
-  // בדיקת אחוז סוללה בטלפון
   if ('getBattery' in navigator) {
     navigator.getBattery().then((battery) => {
       batteryLevel = Math.round(battery.level * 100);
-      battery.addEventListener('levelchange', () => {
-        batteryLevel = Math.round(battery.level * 100);
-      });
+      battery.addEventListener('levelchange', () => batteryLevel = Math.round(battery.level * 100));
     });
   }
 
-  // פונקציית חישוב מרחק בין שתי קואורדינטות (בקילומטרים)
   function calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -85,8 +104,7 @@
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
               Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
               Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return (R * c).toFixed(2);
+    return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2);
   }
 
   function createIcon(symbol, label, battery, speed) {
@@ -100,9 +118,8 @@
     });
   }
 
-  // האזנה בזמן אמת לכל המשתמשים ב-Firebase
-  const locationsRef = ref(db, 'locations');
-  onValue(locationsRef, (snapshot) => {
+  // האזנה בלייב למיקומים
+  onValue(ref(db, 'locations'), (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
 
@@ -114,14 +131,12 @@
       const latLng = [user.lat, user.lng];
       const symbol = user.mode || '📍';
       const label = user.name || userKey;
-      const bat = user.battery || null;
-      const spd = user.speed || 0;
 
       if (markers[userKey]) {
         markers[userKey].setLatLng(latLng);
-        markers[userKey].setIcon(createIcon(symbol, label, bat, spd));
+        markers[userKey].setIcon(createIcon(symbol, label, user.battery, user.speed));
       } else {
-        markers[userKey] = L.marker(latLng, { icon: createIcon(symbol, label, bat, spd) }).addTo(map);
+        markers[userKey] = L.marker(latLng, { icon: createIcon(symbol, label, user.battery, user.speed) }).addTo(map);
       }
 
       if (userKey === myName && firstFix) {
@@ -130,39 +145,30 @@
       }
     });
 
-    // חישוב והצגת מרחק בין המשתמש שלי למשתמש אחר במידה וקיים
     if (myName && usersData[myName]) {
       const otherKeys = Object.keys(usersData).filter(k => k !== myName);
       if (otherKeys.length > 0) {
         const otherUser = usersData[otherKeys[0]];
-        const dist = calculateDistance(
-          usersData[myName].lat, usersData[myName].lng,
-          otherUser.lat, otherUser.lng
-        );
+        const dist = calculateDistance(usersData[myName].lat, usersData[myName].lng, otherUser.lat, otherUser.lng);
         document.getElementById('distance-info').innerText = `מרחק מ-${otherUser.name}: ${dist} ק"מ`;
       }
     }
   });
 
-  // הפעלת שידור
+  // הפעלת שיתוף מיקום
   document.getElementById('start-btn').addEventListener('click', () => {
     const nameInput = document.getElementById('username').value.trim();
     const modeInput = document.getElementById('mode').value;
 
-    if (!nameInput) {
-      alert('נא להזין שם לפני התחלת השיתוף');
-      return;
-    }
+    if (!nameInput) return alert('נא להזין שם');
 
     myName = nameInput;
-
-    // שמירה בזיכרון המכשיר לפעמים הבאות
     localStorage.setItem('tracker_username', myName);
     localStorage.setItem('tracker_mode', modeInput);
 
     document.getElementById('status').innerText = 'משדר לייב פעיל עבור: ' + myName;
     document.getElementById('start-btn').style.background = '#dc3545';
-    document.getElementById('start-btn').innerText = 'משדר בשידור חי... 📡';
+    document.getElementById('start-btn').innerText = 'משדר... 📡';
 
     if ('geolocation' in navigator) {
       navigator.geolocation.watchPosition((pos) => {
@@ -170,6 +176,7 @@
         const lng = pos.coords.longitude;
         const speedKmh = pos.coords.speed ? (pos.coords.speed * 3.6) : 0;
 
+        // עדכון מיקום נוכחי בלייב
         set(ref(db, 'locations/' + myName), {
           name: myName,
           mode: modeInput,
@@ -179,16 +186,71 @@
           battery: batteryLevel,
           timestamp: Date.now()
         });
+
+        // אם מופעלת הקלטת מסלול – שמירת נקודה בנתיב
+        if (isRecording) {
+          const point = [lat, lng];
+          recordedPoints.push(point);
+          
+          if (!currentPolyline) {
+            currentPolyline = L.polyline(recordedPoints, { color: '#ff3388', weight: 5 }).addTo(map);
+          } else {
+            currentPolyline.setLatLngs(recordedPoints);
+          }
+
+          // שמירה ב-Database תחת התאריך של היום
+          push(ref(db, `history/${todayStr}/${myName}`), {
+            lat: lat,
+            lng: lng,
+            timestamp: Date.now()
+          });
+        }
       }, (err) => {
         document.getElementById('status').innerText = 'שגיאת GPS: ' + err.message;
-      }, {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 10000
-      });
-    } else {
-      alert('הדפדפן שלך אינו תומך ברכיב GPS');
+      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
     }
+  });
+
+  // כפתור הפעלה / עצירה של הקלטת מסלול
+  document.getElementById('record-btn').addEventListener('click', () => {
+    if (!myName) return alert('התחל שיתוף בלייב לפני ההקלטה');
+
+    isRecording = !isRecording;
+    const btn = document.getElementById('record-btn');
+
+    if (isRecording) {
+      btn.style.background = '#dc3545';
+      btn.innerText = 'עצור הקלטה ⏹️';
+      recordedPoints = [];
+      document.getElementById('status').innerText = 'מקליט מסלול בזמן אמת... 🔴';
+    } else {
+      btn.style.background = '#ff9800';
+      btn.innerText = 'התחל הקלטה ⏺️';
+      document.getElementById('status').innerText = 'ההקלטה נשמרה בהצלחה! 💾';
+    }
+  });
+
+  // כפתור הצגת היסטוריה לפי תאריך
+  document.getElementById('history-btn').addEventListener('click', () => {
+    const selectedDate = document.getElementById('history-date').value;
+    const nameInput = document.getElementById('username').value.trim() || myName;
+
+    if (!selectedDate || !nameInput) return alert('יש לבחור שם ותאריך לבדיקה');
+
+    get(ref(db, `history/${selectedDate}/${nameInput}`)).then((snapshot) => {
+      const data = snapshot.val();
+      if (!data) return alert('לא נמצאו מסלולים מוקלטים בתאריך זה עבור ' + nameInput);
+
+      const path = Object.values(data).map(pt => [pt.lat, pt.lng]);
+
+      if (historyPolyline) map.removeLayer(historyPolyline);
+
+      // ציור המסלול ההיסטורי בכחול בולט
+      historyPolyline = L.polyline(path, { color: '#007bff', weight: 6, dashArray: '8, 8' }).addTo(map);
+      map.fitBounds(historyPolyline.getBounds());
+
+      document.getElementById('status').innerText = `מוצג מסלול מוקלט עבור ${nameInput} מתאריך ${selectedDate}`;
+    });
   });
 </script>
 </body>
