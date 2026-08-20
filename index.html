@@ -24,16 +24,15 @@
         #status { margin-top: 6px; font-size: 13px; font-weight: bold; color: #ffc107; }
         #dash-info { margin-top: 4px; font-size: 12px; color: #00e676; font-weight: bold; display: flex; justify-content: space-around; background: #2a2a2a; padding: 4px; border-radius: 4px; }
         
+        /* קרדיט יוצר */
+        .footer { background: #141414; color: #666; font-size: 11px; text-align: center; padding: 6px; border-top: 1px solid #333; }
+        
         .waze-arrow-container { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: transform 0.3s ease-out; }
         .waze-arrow { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 22px solid #00d2ff; filter: drop-shadow(0px 0px 4px rgba(0,0,0,0.7)); }
         .marker-card { background: rgba(0,0,0,0.85); color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap; margin-top: 2px; }
         .sos-marker { background: #dc3545; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 0 10px red; }
 
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
@@ -73,6 +72,10 @@
     </div>
 
     <div id="status">ממתין להפעלת GPS...</div>
+</div>
+
+<div class="footer">
+    פותח ע"י כפיר | מערכת מעקב וניווט משפחתית © 2026
 </div>
 
 <script type="module">
@@ -160,7 +163,6 @@
     });
   }
 
-  // האזנה למיקומים בלייב
   onValue(ref(db, 'locations'), (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
@@ -197,7 +199,6 @@
     }
   });
 
-  // האזנה לנקודות עניין (POI) בשטח
   onValue(ref(db, 'pois'), (snapshot) => {
     const data = snapshot.val();
     poiMarkers.forEach(m => map.removeLayer(m));
@@ -212,7 +213,6 @@
     }
   });
 
-  // הפעלת שיתוף
   document.getElementById('start-btn').addEventListener('click', () => {
     const nameInput = document.getElementById('username').value.trim();
     const modeInput = document.getElementById('mode').value;
@@ -272,7 +272,6 @@
     }
   });
 
-  // כפתור מצוקה SOS
   document.getElementById('sos-btn').addEventListener('click', () => {
     if (!myName) return alert('יש להתחיל שיתוף לייב תחילה');
     
@@ -284,7 +283,6 @@
     }
   });
 
-  // הוספת נקודת עניין על המפה
   document.getElementById('poi-btn').addEventListener('click', () => {
     if (!myName || !usersData[myName]) return alert('יש להתחיל שיתוף לייב תחילה');
     
@@ -347,7 +345,6 @@
     });
   });
 
-  // ייצוא קובץ GPX לתוכנות ניווט
   document.getElementById('export-btn').addEventListener('click', () => {
     if (recordedPoints.length === 0) return alert('אין נקודות במסלול להורדה');
 
