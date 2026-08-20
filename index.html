@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מעקב לייב בזמן אמת</title>
+    <title>מעקב לייב משפחתי</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
@@ -13,7 +13,9 @@
         input, select { padding: 10px; width: 40%; font-size: 15px; border-radius: 6px; border: 1px solid #444; text-align: center; margin: 4px; }
         button { padding: 12px; width: 90%; max-width: 320px; font-size: 16px; font-weight: bold; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 6px; }
         #status { margin-top: 8px; font-size: 14px; font-weight: bold; color: #ffc107; }
-        .user-marker { font-size: 28px; text-align: center; line-height: 1.1; text-shadow: 0 0 5px #fff; white-space: nowrap; }
+        #distance-info { margin-top: 6px; font-size: 13px; color: #00e676; font-weight: bold; }
+        .user-marker { font-size: 28px; text-align: center; line-height: 1.1; white-space: nowrap; }
+        .marker-card { background: rgba(0,0,0,0.85); color: white; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; display: inline-block; }
     </style>
 </head>
 <body>
@@ -31,6 +33,7 @@
     <br>
     <button id="start-btn">התחל שיתוף בלייב 🔴</button>
     <div id="status">ממתין להפעלת GPS...</div>
+    <div id="distance-info"></div>
 </div>
 
 <script type="module">
@@ -53,15 +56,47 @@
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   let markers = {};
+  let usersData = {};
   let myName = "";
   let firstFix = true;
+  let batteryLevel = null;
 
-  function createIcon(symbol, label) {
+  // טעינת שם ומצב שנשמרו בזיכרון המכשיר בלחיצות קודמות
+  const savedName = localStorage.getItem('tracker_username');
+  const savedMode = localStorage.getItem('tracker_mode');
+  if (savedName) document.getElementById('username').value = savedName;
+  if (savedMode) document.getElementById('mode').value = savedMode;
+
+  // בדיקת אחוז סוללה בטלפון
+  if ('getBattery' in navigator) {
+    navigator.getBattery().then((battery) => {
+      batteryLevel = Math.round(battery.level * 100);
+      battery.addEventListener('levelchange', () => {
+        batteryLevel = Math.round(battery.level * 100);
+      });
+    });
+  }
+
+  // פונקציית חישוב מרחק בין שתי קואורדינטות (בקילומטרים)
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return (R * c).toFixed(2);
+  }
+
+  function createIcon(symbol, label, battery, speed) {
+    const batteryText = battery ? ` | 🔋${battery}%` : '';
+    const speedText = speed && speed > 0 ? ` | 🚀${Math.round(speed)} קמ"ש` : '';
     return L.divIcon({
-      html: `<div class="user-marker">${symbol}<br><span style="font-size:11px; background:rgba(0,0,0,0.85); color:white; padding:2px 6px; border-radius:4px; font-weight:bold;">${label}</span></div>`,
+      html: `<div class="user-marker">${symbol}<br><div class="marker-card">${label}${batteryText}${speedText}</div></div>`,
       className: '',
-      iconSize: [50, 50],
-      iconAnchor: [25, 25]
+      iconSize: [60, 60],
+      iconAnchor: [30, 30]
     });
   }
 
@@ -71,6 +106,7 @@
     const data = snapshot.val();
     if (!data) return;
 
+    usersData = data;
     Object.keys(data).forEach((userKey) => {
       const user = data[userKey];
       if (!user.lat || !user.lng) return;
@@ -78,25 +114,37 @@
       const latLng = [user.lat, user.lng];
       const symbol = user.mode || '📍';
       const label = user.name || userKey;
+      const bat = user.battery || null;
+      const spd = user.speed || 0;
 
       if (markers[userKey]) {
-        // עדכון מיקום ואייקון של מרקר קיים
         markers[userKey].setLatLng(latLng);
-        markers[userKey].setIcon(createIcon(symbol, label));
+        markers[userKey].setIcon(createIcon(symbol, label, bat, spd));
       } else {
-        // יצירת מרקר חדש למשתמש
-        markers[userKey] = L.marker(latLng, { icon: createIcon(symbol, label) }).addTo(map);
+        markers[userKey] = L.marker(latLng, { icon: createIcon(symbol, label, bat, spd) }).addTo(map);
       }
 
-      // התמקדות ראשונית במיקום שלי
       if (userKey === myName && firstFix) {
         map.setView(latLng, 16);
         firstFix = false;
       }
     });
+
+    // חישוב והצגת מרחק בין המשתמש שלי למשתמש אחר במידה וקיים
+    if (myName && usersData[myName]) {
+      const otherKeys = Object.keys(usersData).filter(k => k !== myName);
+      if (otherKeys.length > 0) {
+        const otherUser = usersData[otherKeys[0]];
+        const dist = calculateDistance(
+          usersData[myName].lat, usersData[myName].lng,
+          otherUser.lat, otherUser.lng
+        );
+        document.getElementById('distance-info').innerText = `מרחק מ-${otherUser.name}: ${dist} ק"מ`;
+      }
+    }
   });
 
-  // לחיצה על כפתור התחלת שיתוף
+  // הפעלת שידור
   document.getElementById('start-btn').addEventListener('click', () => {
     const nameInput = document.getElementById('username').value.trim();
     const modeInput = document.getElementById('mode').value;
@@ -107,6 +155,11 @@
     }
 
     myName = nameInput;
+
+    // שמירה בזיכרון המכשיר לפעמים הבאות
+    localStorage.setItem('tracker_username', myName);
+    localStorage.setItem('tracker_mode', modeInput);
+
     document.getElementById('status').innerText = 'משדר לייב פעיל עבור: ' + myName;
     document.getElementById('start-btn').style.background = '#dc3545';
     document.getElementById('start-btn').innerText = 'משדר בשידור חי... 📡';
@@ -115,13 +168,15 @@
       navigator.geolocation.watchPosition((pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+        const speedKmh = pos.coords.speed ? (pos.coords.speed * 3.6) : 0;
 
-        // שליחת המיקום המעודכן ל-Firebase
         set(ref(db, 'locations/' + myName), {
           name: myName,
           mode: modeInput,
           lat: lat,
           lng: lng,
+          speed: speedKmh,
+          battery: batteryLevel,
           timestamp: Date.now()
         });
       }, (err) => {
