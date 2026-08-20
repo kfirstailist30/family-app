@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מעקב לייב משפחתי - סגנון Waze</title>
+    <title>מעקב והקלטת מסלולים משפחתי Pro</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
@@ -11,41 +11,28 @@
         #map { flex: 1; width: 100%; }
         .controls { padding: 10px; background: #1e1e1e; color: white; text-align: center; }
         input, select { padding: 8px; width: 42%; font-size: 14px; border-radius: 6px; border: 1px solid #444; text-align: center; margin: 3px; }
-        .btn-group { display: flex; justify-content: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-        button { padding: 10px 14px; font-size: 14px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        .btn-group { display: flex; justify-content: center; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+        button { padding: 9px 12px; font-size: 13px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; }
         #start-btn { background: #28a745; }
         #record-btn { background: #ff9800; }
-        #history-btn { background: #0288d1; }
+        #sos-btn { background: #dc3545; animation: pulse 1.5s infinite; }
+        #poi-btn { background: #9c27b0; }
         #center-btn { background: #17a2b8; }
-        #status { margin-top: 6px; font-size: 13px; font-weight: bold; color: #ffc107; }
-        #distance-info { margin-top: 4px; font-size: 12px; color: #00e676; font-weight: bold; }
+        #history-btn { background: #0288d1; }
+        #export-btn { background: #4caf50; display: none; }
         
-        /* עיצוב חץ Waze מסתובב */
-        .waze-arrow-container {
-            width: 44px;
-            height: 44px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.3s ease-out;
-        }
-        .waze-arrow {
-            width: 0; 
-            height: 0; 
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-bottom: 24px solid #00d2ff;
-            filter: drop-shadow(0px 0px 4px rgba(0,0,0,0.6));
-        }
-        .marker-card { 
-            background: rgba(0,0,0,0.85); 
-            color: white; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            font-size: 11px; 
-            font-weight: bold; 
-            white-space: nowrap; 
-            margin-top: 2px;
+        #status { margin-top: 6px; font-size: 13px; font-weight: bold; color: #ffc107; }
+        #dash-info { margin-top: 4px; font-size: 12px; color: #00e676; font-weight: bold; display: flex; justify-content: space-around; background: #2a2a2a; padding: 4px; border-radius: 4px; }
+        
+        .waze-arrow-container { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: transform 0.3s ease-out; }
+        .waze-arrow { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 22px solid #00d2ff; filter: drop-shadow(0px 0px 4px rgba(0,0,0,0.7)); }
+        .marker-card { background: rgba(0,0,0,0.85); color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap; margin-top: 2px; }
+        .sos-marker { background: #dc3545; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 12px; border: 2px solid white; box-shadow: 0 0 10px red; }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
     </style>
 </head>
@@ -58,26 +45,34 @@
         <input type="text" id="username" placeholder="הכנס שם">
         <select id="mode">
             <option value="navigation">🧭 Waze חץ ניווט</option>
+            <option value="🏎️">🏎️ טרקטורון/באגי</option>
+            <option value="🏍️">🏍️ אופנוע</option>
             <option value="🚗">🚗 מכונית</option>
             <option value="🚶">🚶 הליכה</option>
-            <option value="🏍️">🏍️ אופנוע</option>
-            <option value="🏎️">🏎️ טרקטורון/באגי</option>
         </select>
     </div>
     
     <div class="btn-group">
         <button id="start-btn">שיתוף לייב 🔴</button>
-        <button id="record-btn">התחל הקלטה ⏺️</button>
+        <button id="record-btn">הקלטה ⏺️</button>
+        <button id="sos-btn">SOS 🆘</button>
+        <button id="poi-btn">הוסף נקודה 📍</button>
         <button id="center-btn">מיקום שלי 🎯</button>
     </div>
 
     <div style="margin-top: 6px;">
         <input type="date" id="history-date">
         <button id="history-btn">היסטוריה 📅</button>
+        <button id="export-btn">הורד GPX 📥</button>
+    </div>
+
+    <div id="dash-info">
+        <span id="speed-display">🚀 0 קמ"ש</span>
+        <span id="alt-display">🏔️ 0 מטר</span>
+        <span id="dist-display">📍 מרחק: -</span>
     </div>
 
     <div id="status">ממתין להפעלת GPS...</div>
-    <div id="distance-info"></div>
 </div>
 
 <script type="module">
@@ -100,6 +95,7 @@
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
   let markers = {};
+  let poiMarkers = [];
   let usersData = {};
   let myName = "";
   let autoCenter = true;
@@ -124,7 +120,6 @@
     });
   }
 
-  // הפסקת מעקב אוטומטי אם המשתמש מזיז את המפה ידנית
   map.on('dragstart', () => { autoCenter = false; });
 
   function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -137,28 +132,35 @@
     return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2);
   }
 
-  // יצירת אייקון Waze או אייקון רגיל
-  function createIcon(mode, label, battery, speed, heading) {
+  function createIcon(mode, label, battery, speed, heading, isSos) {
+    if (isSos) {
+      return L.divIcon({
+        html: `<div class="sos-marker">🆘 SOS! ${label}</div>`,
+        className: '',
+        iconSize: [100, 40],
+        iconAnchor: [50, 20]
+      });
+    }
+
     const batteryText = battery ? ` | 🔋${battery}%` : '';
-    const speedText = speed && speed > 0 ? ` | 🚀${Math.round(speed)} קמ"ש` : '';
     const headingAngle = heading || 0;
 
     let iconContent = mode;
     if (mode === 'navigation') {
       iconContent = `<div class="waze-arrow-container" style="transform: rotate(${headingAngle}deg);"><div class="waze-arrow"></div></div>`;
     } else {
-      iconContent = `<div style="font-size:28px;">${mode}</div>`;
+      iconContent = `<div style="font-size:26px;">${mode}</div>`;
     }
 
     return L.divIcon({
-      html: `<div style="text-align:center;">${iconContent}<div class="marker-card">${label}${batteryText}${speedText}</div></div>`,
+      html: `<div style="text-align:center;">${iconContent}<div class="marker-card">${label}${batteryText}</div></div>`,
       className: '',
       iconSize: [60, 60],
       iconAnchor: [30, 30]
     });
   }
 
-  // האזנה בלייב ל-Firebase
+  // האזנה למיקומים בלייב
   onValue(ref(db, 'locations'), (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
@@ -174,12 +176,11 @@
 
       if (markers[userKey]) {
         markers[userKey].setLatLng(latLng);
-        markers[userKey].setIcon(createIcon(mode, label, user.battery, user.speed, user.heading));
+        markers[userKey].setIcon(createIcon(mode, label, user.battery, user.speed, user.heading, user.sos));
       } else {
-        markers[userKey] = L.marker(latLng, { icon: createIcon(mode, label, user.battery, user.speed, user.heading) }).addTo(map);
+        markers[userKey] = L.marker(latLng, { icon: createIcon(mode, label, user.battery, user.speed, user.heading, user.sos) }).addTo(map);
       }
 
-      // מרכז מפה אוטומטי בנסיעה
       if (userKey === myName && autoCenter) {
         map.panTo(latLng, { animate: true, duration: 0.8 });
         if (map.getZoom() < 16) map.setZoom(16);
@@ -191,12 +192,27 @@
       if (otherKeys.length > 0) {
         const otherUser = usersData[otherKeys[0]];
         const dist = calculateDistance(usersData[myName].lat, usersData[myName].lng, otherUser.lat, otherUser.lng);
-        document.getElementById('distance-info').innerText = `מרחק מ-${otherUser.name}: ${dist} ק"מ`;
+        document.getElementById('dist-display').innerText = `📍 מ-${otherUser.name}: ${dist} ק"מ`;
       }
     }
   });
 
-  // התחלת שידור
+  // האזנה לנקודות עניין (POI) בשטח
+  onValue(ref(db, 'pois'), (snapshot) => {
+    const data = snapshot.val();
+    poiMarkers.forEach(m => map.removeLayer(m));
+    poiMarkers = [];
+
+    if (data) {
+      Object.values(data).forEach(poi => {
+        const marker = L.marker([poi.lat, poi.lng]).addTo(map)
+          .bindPopup(`<b>${poi.title}</b><br>נוסף ע"י: ${poi.addedBy}`);
+        poiMarkers.push(marker);
+      });
+    }
+  });
+
+  // הפעלת שיתוף
   document.getElementById('start-btn').addEventListener('click', () => {
     const nameInput = document.getElementById('username').value.trim();
     const modeInput = document.getElementById('mode').value;
@@ -216,8 +232,12 @@
       navigator.geolocation.watchPosition((pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        const speedKmh = pos.coords.speed ? (pos.coords.speed * 3.6) : 0;
-        const heading = pos.coords.heading || 0; // זווית כיוון הנסיעה מ-GPS
+        const speedKmh = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
+        const alt = pos.coords.altitude ? Math.round(pos.coords.altitude) : 0;
+        const heading = pos.coords.heading || 0;
+
+        document.getElementById('speed-display').innerText = `🚀 ${speedKmh} קמ"ש`;
+        document.getElementById('alt-display').innerText = `🏔️ ${alt} מטר`;
 
         set(ref(db, 'locations/' + myName), {
           name: myName,
@@ -225,6 +245,7 @@
           lat: lat,
           lng: lng,
           speed: speedKmh,
+          altitude: alt,
           heading: heading,
           battery: batteryLevel,
           timestamp: Date.now()
@@ -251,7 +272,35 @@
     }
   });
 
-  // כפתור התמקדות מחדש
+  // כפתור מצוקה SOS
+  document.getElementById('sos-btn').addEventListener('click', () => {
+    if (!myName) return alert('יש להתחיל שיתוף לייב תחילה');
+    
+    const isSosActive = usersData[myName] && usersData[myName].sos;
+    const confirmSos = confirm(isSosActive ? "לכבות את התראת המצוקה?" : "האם לשלוח התראת מצוקה SOS לכולם?");
+    
+    if (confirmSos) {
+      set(ref(db, `locations/${myName}/sos`), !isSosActive);
+    }
+  });
+
+  // הוספת נקודת עניין על המפה
+  document.getElementById('poi-btn').addEventListener('click', () => {
+    if (!myName || !usersData[myName]) return alert('יש להתחיל שיתוף לייב תחילה');
+    
+    const poiName = prompt("הכנס תיאור לנקודה (למשל: תצפית / פנצ'ר / קפה):");
+    if (poiName) {
+      push(ref(db, 'pois'), {
+        title: poiName,
+        lat: usersData[myName].lat,
+        lng: usersData[myName].lng,
+        addedBy: myName,
+        timestamp: Date.now()
+      });
+      alert('הנקודה נוספה בהצלחה למפה של כולם!');
+    }
+  });
+
   document.getElementById('center-btn').addEventListener('click', () => {
     autoCenter = true;
     if (myName && usersData[myName]) {
@@ -259,7 +308,6 @@
     }
   });
 
-  // כפתור הקלטה
   document.getElementById('record-btn').addEventListener('click', () => {
     if (!myName) return alert('התחל שיתוף בלייב לפני ההקלטה');
 
@@ -268,17 +316,17 @@
 
     if (isRecording) {
       btn.style.background = '#dc3545';
-      btn.innerText = 'עצור הקלטה ⏹️';
+      btn.innerText = 'עצור ⏹️';
       recordedPoints = [];
       document.getElementById('status').innerText = 'מקליט מסלול בזמן אמת... 🔴';
     } else {
       btn.style.background = '#ff9800';
-      btn.innerText = 'התחל הקלטה ⏺️';
+      btn.innerText = 'הקלטה ⏺️';
       document.getElementById('status').innerText = 'ההקלטה נשמרה בהצלחה! 💾';
+      document.getElementById('export-btn').style.display = 'inline-block';
     }
   });
 
-  // הצגת היסטוריה
   document.getElementById('history-btn').addEventListener('click', () => {
     const selectedDate = document.getElementById('history-date').value;
     const nameInput = document.getElementById('username').value.trim() || myName;
@@ -289,13 +337,32 @@
       const data = snapshot.val();
       if (!data) return alert('לא נמצאו מסלולים בתאריך זה');
 
-      const path = Object.values(data).map(pt => [pt.lat, pt.lng]);
+      recordedPoints = Object.values(data).map(pt => [pt.lat, pt.lng]);
       if (historyPolyline) map.removeLayer(historyPolyline);
 
-      historyPolyline = L.polyline(path, { color: '#007bff', weight: 6, dashArray: '8, 8' }).addTo(map);
+      historyPolyline = L.polyline(recordedPoints, { color: '#007bff', weight: 6, dashArray: '8, 8' }).addTo(map);
       map.fitBounds(historyPolyline.getBounds());
       document.getElementById('status').innerText = `מוצג מסלול מוקלט מתאריך ${selectedDate}`;
+      document.getElementById('export-btn').style.display = 'inline-block';
     });
+  });
+
+  // ייצוא קובץ GPX לתוכנות ניווט
+  document.getElementById('export-btn').addEventListener('click', () => {
+    if (recordedPoints.length === 0) return alert('אין נקודות במסלול להורדה');
+
+    let gpxData = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="FamilyTracker">\n<trk><name>Track_${todayStr}</name><trkseg>\n`;
+    recordedPoints.forEach(pt => {
+      gpxData += `<trkpt lat="${pt[0]}" lon="${pt[1]}"></trkpt>\n`;
+    });
+    gpxData += `</trkseg></trk>\n</gpx>`;
+
+    const blob = new Blob([gpxData], { type: 'application/gpx+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `route_${todayStr}.gpx`;
+    a.click();
   });
 </script>
 </body>
