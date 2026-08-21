@@ -9,22 +9,25 @@
     <style>
         body, html { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; background: #121212; color: white; }
         
-        #map { height: 72vh; width: 100%; z-index: 1; }
+        #map { height: 68vh; width: 100%; z-index: 1; transition: filter 0.3s ease; }
+        .dark-map { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
         
-        .controls { height: 28vh; background: #1e1e1e; padding: 8px 12px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; border-top: 2px solid #333; }
+        .controls { height: 32vh; background: #1e1e1e; padding: 8px 12px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; border-top: 2px solid #333; }
         
         .input-row { display: flex; gap: 6px; }
         input, select { flex: 1; padding: 8px; font-size: 14px; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: white; text-align: center; }
         
-        .btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-        button { padding: 9px 4px; font-size: 12px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        .btn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        button { padding: 9px 2px; font-size: 11px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 2px; }
         #start-btn { background: #28a745; }
         #record-btn { background: #ff9800; }
         #sos-btn { background: #dc3545; animation: pulse 1.5s infinite; }
         #poi-btn { background: #9c27b0; }
         #center-btn { background: #17a2b8; }
         #history-btn { background: #0288d1; }
-        #export-btn { background: #4caf50; display: none; }
+        #night-btn { background: #343a40; }
+        #wa-btn { background: #25d366; }
+        #speed-alert-btn { background: #d32f2f; }
         
         #dash-info { display: flex; justify-content: space-around; background: #2a2a2a; padding: 6px; border-radius: 6px; font-size: 12px; color: #00e676; font-weight: bold; }
         #status { font-size: 11px; text-align: center; color: #ffc107; }
@@ -66,12 +69,15 @@
         <button id="poi-btn">נקודה 📍</button>
         <button id="center-btn">מיקוד 🎯</button>
         <button id="history-btn">היסטוריה 📅</button>
+        <button id="night-btn">לילה 🌙</button>
+        <button id="wa-btn">שתף 💬</button>
     </div>
 
     <div id="dash-info">
         <span id="speed-display">🚀 0 קמ"ש</span>
         <span id="alt-display">🏔️ 0 מטר</span>
         <span id="batt-display">🔋 סוללה: -</span>
+        <button id="speed-alert-btn" style="padding: 2px 6px; font-size: 10px;">🔊 80+</button>
     </div>
 
     <div id="status">ממתין להפעלת GPS...</div>
@@ -80,7 +86,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, push, onValue, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
     authDomain: "family-tracker-79ffd.firebaseapp.com",
@@ -94,17 +100,21 @@
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
-  // הגדרת מפות: כביש ושטח טופוגרפי
+  // 1. הגדרת מפות: כביש, שטח טופוגרפי ולוויין איכותי
   const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
   const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 });
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri' });
 
   const map = L.map('map', { layers: [streets] }).setView([31.5, 34.75], 8);
-  L.control.layers({ "🗺️ כבישים": streets, "🏔️ שטח טופוגרפי": topo }).addTo(map);
+  L.control.layers({ "🗺️ כבישים": streets, "🏔️ שטח טופוגרפי": topo, "🛰️ לוויין": satellite }).addTo(map);
 
   let markers = {};
   let myName = localStorage.getItem('tracker_username') || "";
   let autoCenter = true;
   let batteryLevel = null;
+  let currentLat = null, currentLng = null;
+  let speedAlertActive = false;
+  let isDarkMode = false;
 
   if (myName) document.getElementById('username').value = myName;
 
@@ -116,6 +126,49 @@
   }
 
   map.on('dragstart', () => { autoCenter = false; });
+
+  // 2. מצב לילה למפה
+  document.getElementById('night-btn').addEventListener('click', () => {
+    isDarkMode = !isDarkMode;
+    const mapElement = document.getElementById('map');
+    if (isDarkMode) {
+      mapElement.classList.add('dark-map');
+      document.getElementById('night-btn').innerText = 'יום ☀️';
+    } else {
+      mapElement.classList.remove('dark-map');
+      document.getElementById('night-btn').innerText = 'לילה 🌙';
+    }
+  });
+
+  // 3. התראת מהירות
+  document.getElementById('speed-alert-btn').addEventListener('click', () => {
+    speedAlertActive = !speedAlertActive;
+    const btn = document.getElementById('speed-alert-btn');
+    if (speedAlertActive) {
+      btn.style.background = '#28a745';
+      btn.innerText = '🔊 פעיל';
+      alert('התראת מהירות מופעלת מעל 80 קמ"ש');
+    } else {
+      btn.style.background = '#d32f2f';
+      btn.innerText = '🔊 80+';
+    }
+  });
+
+  // 4. שיתוף וואטסאפ מהיר
+  document.getElementById('wa-btn').addEventListener('click', () => {
+    if (!currentLat || !currentLng) return alert('עדיין אין מיקום GPS זמין לשיתוף');
+    const mapsUrl = `https://maps.google.com/?q=${currentLat},${currentLng}`;
+    const text = `היי, זה המיקום הנוכחי שלי בשטח: ${mapsUrl}`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  });
+
+  function playSpeedWarning() {
+    if ('speechSynthesis' in window) {
+      const msg = new SpeechSynthesisUtterance('זהירות, מהירות מופרזת');
+      msg.lang = 'he-IL';
+      window.speechSynthesis.speak(msg);
+    }
+  }
 
   function createIcon(mode, label, heading, isSos) {
     if (isSos) {
@@ -164,7 +217,11 @@
       if (userKey === myName) {
         document.getElementById('speed-display').innerText = `🚀 ${user.speed || 0} קמ"ש`;
         document.getElementById('alt-display').innerText = `🏔️ ${user.altitude || 0} מטר`;
-        document.getElementById('batt-display').innerText = `🔋 סוללה: ${user.battery || '-'}%`;
+        document.getElementById('batt-display').innerText = `🔋 ${user.battery || '-'}%`;
+
+        if (speedAlertActive && user.speed > 80) {
+          playSpeedWarning();
+        }
 
         if (autoCenter) {
           map.panTo(latLng, { animate: true, duration: 0.5 });
@@ -190,8 +247,8 @@
 
     if ('geolocation' in navigator) {
       navigator.geolocation.watchPosition((pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+        currentLat = pos.coords.latitude;
+        currentLng = pos.coords.longitude;
         const speedKmh = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
         const alt = pos.coords.altitude ? Math.round(pos.coords.altitude) : 0;
         const heading = pos.coords.heading || 0;
@@ -199,8 +256,8 @@
         set(ref(db, 'locations/' + myName), {
           name: myName,
           mode: modeInput,
-          lat: lat,
-          lng: lng,
+          lat: currentLat,
+          lng: currentLng,
           speed: speedKmh,
           altitude: alt,
           heading: heading,
