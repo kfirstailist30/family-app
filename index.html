@@ -3,23 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>מערכת שטח Pro | כפיר</title>
+    <title>מערכת ניווט ושטח Pro - כפיר</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body, html { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
-        /* המפה תתפוס את כל הגובה פחות לוח הבקרה */
-        #map { height: 75vh; width: 100%; }
-        .controls { height: 25vh; background: #121212; color: white; display: flex; flex-direction: column; padding: 10px; overflow-y: auto; }
+        body, html { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; background: #121212; color: white; }
         
-        .btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 5px; }
-        button { padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; }
+        #map { height: 72vh; width: 100%; z-index: 1; }
         
-        #dash-info { display: flex; justify-content: space-between; background: #333; padding: 5px; border-radius: 4px; font-size: 12px; margin: 5px 0; }
+        .controls { height: 28vh; background: #1e1e1e; padding: 8px 12px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; border-top: 2px solid #333; }
         
-        /* איקון משתמש */
-        .marker-box { text-align: center; font-weight: bold; }
-        .marker-label { background: rgba(0,0,0,0.7); color: white; padding: 2px 4px; border-radius: 3px; font-size: 10px; }
+        .input-row { display: flex; gap: 6px; }
+        input, select { flex: 1; padding: 8px; font-size: 14px; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: white; text-align: center; }
+        
+        .btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        button { padding: 9px 4px; font-size: 12px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        #start-btn { background: #28a745; }
+        #record-btn { background: #ff9800; }
+        #sos-btn { background: #dc3545; animation: pulse 1.5s infinite; }
+        #poi-btn { background: #9c27b0; }
+        #center-btn { background: #17a2b8; }
+        #history-btn { background: #0288d1; }
+        #export-btn { background: #4caf50; display: none; }
+        
+        #dash-info { display: flex; justify-content: space-around; background: #2a2a2a; padding: 6px; border-radius: 6px; font-size: 12px; color: #00e676; font-weight: bold; }
+        #status { font-size: 11px; text-align: center; color: #ffc107; }
+        
+        .footer { font-size: 10px; text-align: center; color: #777; }
+
+        /* עיצוב אייקונים על המפה */
+        .custom-marker { text-align: center; white-space: nowrap; }
+        .marker-icon { font-size: 26px; line-height: 1; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.8)); }
+        .marker-card { background: rgba(0,0,0,0.8); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid #555; display: inline-block; margin-top: 2px; }
+        
+        .waze-arrow-container { width: 30px; height: 30px; margin: 0 auto; display: flex; align-items: center; justify-content: center; transition: transform 0.3s ease-out; }
+        .waze-arrow { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 20px solid #00d2ff; filter: drop-shadow(0px 0px 4px rgba(0,0,0,0.8)); }
+        .sos-marker { background: #dc3545; color: white; padding: 4px 8px; border-radius: 8px; font-weight: bold; font-size: 11px; border: 2px solid white; box-shadow: 0 0 8px red; }
+
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.04); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
@@ -27,86 +48,184 @@
 <div id="map"></div>
 
 <div class="controls">
-    <div style="display: flex; gap: 5px;">
-        <input type="text" id="username" placeholder="שם הנהג" style="flex:1; padding:5px;">
-        <select id="mode" style="flex:1;">
-            <option value="navigation">כביש</option>
-            <option value="🏎️">שטח</option>
+    <div class="input-row">
+        <input type="text" id="username" placeholder="שם הנהג/ת">
+        <select id="mode">
+            <option value="navigation">🧭 ניווט כביש (חץ)</option>
+            <option value="🏎️">🏎️ טרקטורון / באגי</option>
+            <option value="🏍️">🏍️ אופנוע</option>
+            <option value="🚗">🚗 מכונית</option>
+            <option value="🚶">🚶 הליכה</option>
         </select>
     </div>
 
     <div class="btn-grid">
-        <button id="start-btn" style="background:#2e7d32">לייב 🔴</button>
-        <button id="record-btn" style="background:#ef6c00">הקלטה ⏺️</button>
-        <button id="sos-btn" style="background:#c62828">SOS 🆘</button>
-        <button id="poi-btn" style="background:#6a1b9a">נקודה 📍</button>
-        <button id="center-btn" style="background:#0277bd">מיקוד 🎯</button>
-        <button id="history-btn" style="background:#37474f">היסטוריה 📅</button>
+        <button id="start-btn">לייב 🔴</button>
+        <button id="record-btn">הקלטה ⏺️</button>
+        <button id="sos-btn">SOS 🆘</button>
+        <button id="poi-btn">נקודה 📍</button>
+        <button id="center-btn">מיקוד 🎯</button>
+        <button id="history-btn">היסטוריה 📅</button>
     </div>
 
     <div id="dash-info">
         <span id="speed-display">🚀 0 קמ"ש</span>
-        <span id="alt-display">🏔️ 0 מ'</span>
-        <span id="batt-display">🔋 -</span>
+        <span id="alt-display">🏔️ 0 מטר</span>
+        <span id="batt-display">🔋 סוללה: -</span>
     </div>
+
+    <div id="status">ממתין להפעלת GPS...</div>
+    <div class="footer">פותח ע"י כפיר | מערכת ניווט ושטח Pro © 2026</div>
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, push, onValue, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-  const app = initializeApp({ databaseURL: "https://family-tracker-79ffd-default-rtdb.firebaseio.com" });
+  const firebaseConfig = {
+    authDomain: "family-tracker-79ffd.firebaseapp.com",
+    databaseURL: "https://family-tracker-79ffd-default-rtdb.firebaseio.com",
+    projectId: "family-tracker-79ffd",
+    storageBucket: "family-tracker-79ffd.appspot.com",
+    messagingSenderId: "2483449038",
+    appId: "1:2483449038:web:family-tracking"
+  };
+
+  const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-  
-  // הגדרת מפות: כביש ושטח
-  const mapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
-  const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
-  const map = L.map('map', { layers: [mapLayer] }).setView([31.5, 34.75], 8);
-  
-  L.control.layers({ "כביש": mapLayer, "שטח": topoLayer }).addTo(map);
+
+  // הגדרת מפות: כביש ושטח טופוגרפי
+  const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+  const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 });
+
+  const map = L.map('map', { layers: [streets] }).setView([31.5, 34.75], 8);
+  L.control.layers({ "🗺️ כבישים": streets, "🏔️ שטח טופוגרפי": topo }).addTo(map);
 
   let markers = {};
   let myName = localStorage.getItem('tracker_username') || "";
-  document.getElementById('username').value = myName;
+  let autoCenter = true;
+  let batteryLevel = null;
+
+  if (myName) document.getElementById('username').value = myName;
+
+  if ('getBattery' in navigator) {
+    navigator.getBattery().then((battery) => {
+      batteryLevel = Math.round(battery.level * 100);
+      battery.addEventListener('levelchange', () => batteryLevel = Math.round(battery.level * 100));
+    });
+  }
+
+  map.on('dragstart', () => { autoCenter = false; });
+
+  function createIcon(mode, label, heading, isSos) {
+    if (isSos) {
+      return L.divIcon({
+        html: `<div class="sos-marker">🆘 SOS! ${label}</div>`,
+        className: 'custom-marker',
+        iconSize: [100, 30],
+        iconAnchor: [50, 15]
+      });
+    }
+
+    let iconHtml = "";
+    if (mode === 'navigation') {
+      iconHtml = `<div class="waze-arrow-container" style="transform: rotate(${heading || 0}deg);"><div class="waze-arrow"></div></div>`;
+    } else {
+      iconHtml = `<div class="marker-icon">${mode}</div>`;
+    }
+
+    return L.divIcon({
+      html: `<div class="custom-marker">${iconHtml}<div class="marker-card">${label}</div></div>`,
+      className: 'custom-marker',
+      iconSize: [60, 50],
+      iconAnchor: [30, 25]
+    });
+  }
 
   onValue(ref(db, 'locations'), (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
-    
-    Object.keys(data).forEach(uKey => {
-      const u = data[uKey];
-      const icon = L.divIcon({ html: `<div class="marker-box">📍<div class="marker-label">${u.name}</div></div>`, iconSize: [40, 40] });
-      
-      if (markers[uKey]) {
-        markers[uKey].setLatLng([u.lat, u.lng]);
+
+    Object.keys(data).forEach((userKey) => {
+      const user = data[userKey];
+      if (!user.lat || !user.lng) return;
+
+      const latLng = [user.lat, user.lng];
+      const mode = user.mode || 'navigation';
+      const label = user.name || userKey;
+
+      if (markers[userKey]) {
+        markers[userKey].setLatLng(latLng);
+        markers[userKey].setIcon(createIcon(mode, label, user.heading, user.sos));
       } else {
-        markers[uKey] = L.marker([u.lat, u.lng], { icon }).addTo(map);
+        markers[userKey] = L.marker(latLng, { icon: createIcon(mode, label, user.heading, user.sos) }).addTo(map);
       }
-      
-      if (uKey === myName) {
-        document.getElementById('speed-display').innerText = `🚀 ${u.speed || 0} קמ"ש`;
-        document.getElementById('alt-display').innerText = `🏔️ ${u.altitude || 0} מ'`;
-        document.getElementById('batt-display').innerText = `🔋 ${u.battery || 0}%`;
+
+      if (userKey === myName) {
+        document.getElementById('speed-display').innerText = `🚀 ${user.speed || 0} קמ"ש`;
+        document.getElementById('alt-display').innerText = `🏔️ ${user.altitude || 0} מטר`;
+        document.getElementById('batt-display').innerText = `🔋 סוללה: ${user.battery || '-'}%`;
+
+        if (autoCenter) {
+          map.panTo(latLng, { animate: true, duration: 0.5 });
+          if (map.getZoom() < 15) map.setZoom(15);
+        }
       }
     });
   });
 
   document.getElementById('start-btn').addEventListener('click', () => {
-    myName = document.getElementById('username').value.trim();
+    const nameInput = document.getElementById('username').value.trim();
+    const modeInput = document.getElementById('mode').value;
+
+    if (!nameInput) return alert('נא להזין שם');
+
+    myName = nameInput;
+    autoCenter = true;
     localStorage.setItem('tracker_username', myName);
-    navigator.geolocation.watchPosition((pos) => {
-      set(ref(db, 'locations/' + myName), {
-        name: myName,
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        speed: Math.round(pos.coords.speed * 3.6 || 0),
-        altitude: Math.round(pos.coords.altitude || 0)
-      });
-    }, null, { enableHighAccuracy: true });
+
+    document.getElementById('status').innerText = 'משדר לייב פעיל... 📡';
+    document.getElementById('start-btn').style.background = '#dc3545';
+    document.getElementById('start-btn').innerText = 'משדר...';
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.watchPosition((pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const speedKmh = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
+        const alt = pos.coords.altitude ? Math.round(pos.coords.altitude) : 0;
+        const heading = pos.coords.heading || 0;
+
+        set(ref(db, 'locations/' + myName), {
+          name: myName,
+          mode: modeInput,
+          lat: lat,
+          lng: lng,
+          speed: speedKmh,
+          altitude: alt,
+          heading: heading,
+          battery: batteryLevel,
+          timestamp: Date.now()
+        });
+      }, (err) => {
+        document.getElementById('status').innerText = 'שגיאת GPS: ' + err.message;
+      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+    }
   });
 
   document.getElementById('center-btn').addEventListener('click', () => {
-    if (markers[myName]) map.setView(markers[myName].getLatLng(), 16);
+    autoCenter = true;
+    if (myName && markers[myName]) {
+      map.setView(markers[myName].getLatLng(), 16, { animate: true });
+    }
+  });
+
+  document.getElementById('sos-btn').addEventListener('click', () => {
+    if (!myName) return alert('התחל שיתוף בלייב תחילה');
+    const confirmSos = confirm("האם לשלוח התראת מצוקה SOS?");
+    if (confirmSos) {
+      set(ref(db, `locations/${myName}/sos`), true);
+    }
   });
 </script>
 </body>
