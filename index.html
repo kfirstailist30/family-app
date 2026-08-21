@@ -2,36 +2,24 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת ניווט ושטח Pro - כפיר</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>מערכת שטח Pro | כפיר</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body, html { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; display: flex; flex-direction: column; }
-        #map { flex: 1; width: 100%; }
-        .controls { padding: 12px; background: #212121; color: white; text-align: center; box-shadow: 0 -2px 10px rgba(0,0,0,0.3); }
-        input, select { padding: 8px; width: 45%; font-size: 14px; border-radius: 6px; border: none; text-align: center; margin: 3px; }
-        .btn-group { display: flex; justify-content: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-        button { padding: 10px 14px; font-size: 13px; font-weight: bold; color: white; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; }
-        #start-btn { background: #2e7d32; }
-        #record-btn { background: #ef6c00; }
-        #sos-btn { background: #c62828; animation: pulse 1.5s infinite; }
-        #poi-btn { background: #6a1b9a; }
-        #center-btn { background: #0277bd; }
-        #history-btn { background: #37474f; }
-        #export-btn { background: #2e7d32; display: none; }
+        body, html { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
+        /* המפה תתפוס את כל הגובה פחות לוח הבקרה */
+        #map { height: 75vh; width: 100%; }
+        .controls { height: 25vh; background: #121212; color: white; display: flex; flex-direction: column; padding: 10px; overflow-y: auto; }
         
-        #status { margin-top: 8px; font-size: 12px; font-weight: bold; color: #ffeb3b; }
-        #dash-info { margin-top: 8px; font-size: 12px; color: #64ffda; font-weight: bold; display: flex; justify-content: space-around; background: #333; padding: 6px; border-radius: 6px; }
+        .btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 5px; }
+        button { padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; }
         
-        .footer { background: #121212; color: #555; font-size: 10px; text-align: center; padding: 5px; }
+        #dash-info { display: flex; justify-content: space-between; background: #333; padding: 5px; border-radius: 4px; font-size: 12px; margin: 5px 0; }
         
-        .waze-arrow-container { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; transition: transform 0.3s ease-out; }
-        .waze-arrow { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 20px solid #00b0ff; filter: drop-shadow(0px 0px 3px black); }
-        .marker-card { background: rgba(0,0,0,0.7); color: white; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-top: 2px; }
-        .sos-marker { background: #ff1744; color: white; padding: 3px 6px; border-radius: 10px; font-weight: bold; font-size: 11px; border: 2px solid white; }
-
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        /* איקון משתמש */
+        .marker-box { text-align: center; font-weight: bold; }
+        .marker-label { background: rgba(0,0,0,0.7); color: white; padding: 2px 4px; border-radius: 3px; font-size: 10px; }
     </style>
 </head>
 <body>
@@ -39,117 +27,87 @@
 <div id="map"></div>
 
 <div class="controls">
-    <div>
-        <input type="text" id="username" placeholder="שם הנהג/ת">
-        <select id="mode">
-            <option value="navigation">🧭 ניווט כביש</option>
-            <option value="🏎️">🏎️ שטח/באגי</option>
-            <option value="🏍️">🏍️ אופנוע</option>
-            <option value="🚶">🚶 הליכה</option>
+    <div style="display: flex; gap: 5px;">
+        <input type="text" id="username" placeholder="שם הנהג" style="flex:1; padding:5px;">
+        <select id="mode" style="flex:1;">
+            <option value="navigation">כביש</option>
+            <option value="🏎️">שטח</option>
         </select>
     </div>
-    
-    <div class="btn-group">
-        <button id="start-btn">לייב 🔴</button>
-        <button id="record-btn">הקלטה ⏺️</button>
-        <button id="sos-btn">SOS 🆘</button>
-        <button id="poi-btn">נקודה 📍</button>
-        <button id="center-btn">מיקוד 🎯</button>
-    </div>
 
-    <div style="margin-top: 8px;">
-        <input type="date" id="history-date" style="width: 40%">
-        <button id="history-btn">היסטוריה 📅</button>
-        <button id="export-btn">GPX 📥</button>
+    <div class="btn-grid">
+        <button id="start-btn" style="background:#2e7d32">לייב 🔴</button>
+        <button id="record-btn" style="background:#ef6c00">הקלטה ⏺️</button>
+        <button id="sos-btn" style="background:#c62828">SOS 🆘</button>
+        <button id="poi-btn" style="background:#6a1b9a">נקודה 📍</button>
+        <button id="center-btn" style="background:#0277bd">מיקוד 🎯</button>
+        <button id="history-btn" style="background:#37474f">היסטוריה 📅</button>
     </div>
 
     <div id="dash-info">
         <span id="speed-display">🚀 0 קמ"ש</span>
-        <span id="alt-display">🏔️ 0 מטר</span>
+        <span id="alt-display">🏔️ 0 מ'</span>
         <span id="batt-display">🔋 -</span>
-        <span id="dist-display">📍 -</span>
     </div>
-    <div id="status">ממתין להפעלת GPS...</div>
 </div>
-
-<div class="footer">פותח ע"י כפיר | מערכת ניווט שטח Pro</div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, push, onValue, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-  const firebaseConfig = {
-    authDomain: "family-tracker-79ffd.firebaseapp.com",
-    databaseURL: "https://family-tracker-79ffd-default-rtdb.firebaseio.com",
-    projectId: "family-tracker-79ffd",
-    storageBucket: "family-tracker-79ffd.appspot.com",
-    messagingSenderId: "2483449038",
-    appId: "1:2483449038:web:family-tracking"
-  };
-
-  const app = initializeApp(firebaseConfig);
+  const app = initializeApp({ databaseURL: "https://family-tracker-79ffd-default-rtdb.firebaseio.com" });
   const db = getDatabase(app);
-
-  // הגדרת שכבות מפה
-  const streets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' });
-  const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap' });
   
-  const map = L.map('map', { layers: [streets] }).setView([31.5, 34.75], 8);
+  // הגדרת מפות: כביש ושטח
+  const mapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+  const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
+  const map = L.map('map', { layers: [mapLayer] }).setView([31.5, 34.75], 8);
   
-  // הוספת בורר שכבות למפה
-  L.control.layers({ "כבישים (OSM)": streets, "שטח טופוגרפי": topo }).addTo(map);
+  L.control.layers({ "כביש": mapLayer, "שטח": topoLayer }).addTo(map);
 
-  let markers = {}, poiMarkers = [], usersData = {}, myName = "", autoCenter = true, isRecording = false, recordedPoints = [];
-  
-  // עדכון סוללה
-  let batteryLevel = 0;
-  if ('getBattery' in navigator) navigator.getBattery().then(b => { batteryLevel = Math.round(b.level * 100); });
-
-  function createIcon(mode, label, heading, isSos) {
-    if (isSos) return L.divIcon({ html: `<div class="sos-marker">🆘 ${label}</div>`, className: '', iconSize: [80, 40] });
-    let iconContent = mode === 'navigation' ? `<div class="waze-arrow-container" style="transform: rotate(${heading || 0}deg);"><div class="waze-arrow"></div></div>` : `<div style="font-size:24px;">${mode}</div>`;
-    return L.divIcon({ html: `<div style="text-align:center;">${iconContent}<div class="marker-card">${label}</div></div>`, className: '', iconSize: [50, 50], iconAnchor: [25, 25] });
-  }
+  let markers = {};
+  let myName = localStorage.getItem('tracker_username') || "";
+  document.getElementById('username').value = myName;
 
   onValue(ref(db, 'locations'), (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
-    usersData = data;
     
-    Object.keys(data).forEach(userKey => {
-      const u = data[userKey];
-      if (!u.lat) return;
-      if (markers[userKey]) {
-        markers[userKey].setLatLng([u.lat, u.lng]);
-        markers[userKey].setIcon(createIcon(u.mode, u.name, u.heading, u.sos));
+    Object.keys(data).forEach(uKey => {
+      const u = data[uKey];
+      const icon = L.divIcon({ html: `<div class="marker-box">📍<div class="marker-label">${u.name}</div></div>`, iconSize: [40, 40] });
+      
+      if (markers[uKey]) {
+        markers[uKey].setLatLng([u.lat, u.lng]);
       } else {
-        markers[userKey] = L.marker([u.lat, u.lng], { icon: createIcon(u.mode, u.name, u.heading, u.sos) }).addTo(map);
+        markers[uKey] = L.marker([u.lat, u.lng], { icon }).addTo(map);
       }
-      if (userKey === myName) {
-        document.getElementById('batt-display').innerText = `🔋 ${u.battery || '-'}%`;
-        if (autoCenter) map.panTo([u.lat, u.lng]);
+      
+      if (uKey === myName) {
+        document.getElementById('speed-display').innerText = `🚀 ${u.speed || 0} קמ"ש`;
+        document.getElementById('alt-display').innerText = `🏔️ ${u.altitude || 0} מ'`;
+        document.getElementById('batt-display').innerText = `🔋 ${u.battery || 0}%`;
       }
     });
   });
 
   document.getElementById('start-btn').addEventListener('click', () => {
     myName = document.getElementById('username').value.trim();
-    if (!myName) return alert('הכנס שם');
-    document.getElementById('start-btn').innerText = 'משדר...';
-    
+    localStorage.setItem('tracker_username', myName);
     navigator.geolocation.watchPosition((pos) => {
-      const { latitude: lat, longitude: lng, speed, altitude, heading } = pos.coords;
-      const speedKmh = speed ? Math.round(speed * 3.6) : 0;
-      
-      document.getElementById('speed-display').innerText = `🚀 ${speedKmh} קמ"ש`;
-      document.getElementById('alt-display').innerText = `🏔️ ${Math.round(altitude || 0)} מטר`;
-      
-      set(ref(db, 'locations/' + myName), { name: myName, mode: document.getElementById('mode').value, lat, lng, speed: speedKmh, altitude: Math.round(altitude || 0), heading, battery: batteryLevel, timestamp: Date.now() });
+      set(ref(db, 'locations/' + myName), {
+        name: myName,
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        speed: Math.round(pos.coords.speed * 3.6 || 0),
+        altitude: Math.round(pos.coords.altitude || 0)
+      });
     }, null, { enableHighAccuracy: true });
   });
 
-  // [שאר הפונקציות נשארות זהות, רק לוודא שהוספנו את ה-HTML החדש]
-  // בגלל אורך התגובה, שאר הפונקציות SOS, POI, Record נשארות כפי שהיו בקוד הקודם שלך.
+  document.getElementById('center-btn').addEventListener('click', () => {
+    if (markers[myName]) map.setView(markers[myName].getLatLng(), 16);
+  });
 </script>
 </body>
 </html>
